@@ -16,6 +16,7 @@ class VoG:
         for e in self.adj_list:
             self.adj_mat[e[0], e[1]] = 1
             self.adj_mat[e[1], e[0]] = 1
+            
 
         self.G = nx.from_numpy_matrix(self.adj_mat)
 
