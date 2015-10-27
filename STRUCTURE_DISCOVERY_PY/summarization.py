@@ -2,12 +2,19 @@ from operator import itemgetter
 import csv
 import numpy as np
 import networkx as nx
+import multiprocessing as mp
 
 class VoG:
+    def __init__(self, input_file):
+        self.mdl_results = []
+        self.parse_adj_list_file(input_file)
+        self.mdl_workers = mp.Pool(processes=(mp.cpu_count() * 2))
+        self.slash_burn_new(k=2, gcc_num_nodes_criterion=3)
+
 
     # this assumes a 1 indexed adjacency list
-    def parse_adj_list_file(self, file_name):
-        with open(file_name) as gf:
+    def parse_adj_list_file(self, input_file):
+        with open(input_file) as gf:
             r = csv.reader(gf, delimiter=',')
             self.adj_list = np.array(list(r), int)
 
@@ -46,10 +53,13 @@ class VoG:
             # 3
             self.G = GCC
 
-    """
-        gcc_num_nodes_criterion: the criterion for a subgraph to be a GCC which will be burned
-    """
     def slash_burn_new(self, k, gcc_num_nodes_criterion=3):
+        """ Peforms slashburn algorithm for subgraph generation
+        
+        Args:
+            k: number of hubsets to remove at each iteration
+            gcc_num_nodes_criterion: the criterion for a subgraph to be a GCC which will be burned
+        """
         self.GCCs = [self.G] # all the GCCs that meet the criterion, acts as a queue
         self.gamma = np.array([]) # deque
         self.candidate_structures = []
@@ -68,6 +78,7 @@ class VoG:
             sorted_sub_graphs = sorted(sorted_sub_graphs, key=itemgetter(1), reverse=True) # sort the subgraphs by the number of nodes in decreasing order
 
             for sub_graph, num_nodes in sorted_sub_graphs: # iterate over the remaining subgraphs we are "burning"
+                self.mdl_workers.apply_async(mdl_encoding, args=sub_graph, callback=self.collect_mdl_results)
                 if sub_graph.number_of_nodes() <= gcc_num_nodes_criterion:
                     self.candidate_structures.append(sub_graph) # meets the criterion, goes to candidate structures
                 else:
@@ -75,12 +86,17 @@ class VoG:
                 self.gamma = np.append(self.gamma, sub_graph.nodes()) # add the nodes in the non-GCC to the back of gamma
 
         print
+        self.mdl_workers.close()
+        self.mdl_workers.join()
 
-    # def mdl_encoding(self):
-        # TODO: perform MDL encodings
+    def collect_mdl_results(self, result):
+        self.mdl_results.append(result)
+
+def mdl_encoding(self, sub_graph):
+    return sub_graph
+    # TODO: perform MDL encodings
+
 
 if __name__ == '__main__':
-    vog = VoG()
-    vog.parse_adj_list_file('sb_paper_graph.txt')
+    vog = VoG('sb_paper_graph.txt')
     # vog.slash_burn(k=2)
-    vog.slash_burn_new(k=2, gcc_num_nodes_criterion=3)
