@@ -3,6 +3,7 @@ import csv
 import numpy as np
 import networkx as nx
 import multiprocessing as mp
+from math import log
 
 
 class VoG:
@@ -11,7 +12,7 @@ class VoG:
         self.mdl_results = []
         self.parse_adj_list_file(input_file)
         self.mdl_workers = mp.Pool(processes=(mp.cpu_count() * 2))
-        self.slash_burn_multiple_gcc(k=2, gcc_num_nodes_criterion=3)
+        self.slash_burn_multiple_gcc(1, gcc_num_nodes_criterion=500)
 
     # TODO: this assumes a 1 indexed adjacency list
     def parse_adj_list_file(self, input_file):
@@ -26,6 +27,7 @@ class VoG:
             adj_mat[e[1], e[0]] = 1
 
         self.G = nx.from_numpy_matrix(adj_mat)
+        self.total_num_nodes = self.G.number_of_nodes()
 
     def slash_burn(self, k):
         self.gamma = np.array([])  # deque
@@ -84,6 +86,8 @@ class VoG:
                 hubset_subgraph.append(node)
                 # TODO: should we consider the size of these subgraphs or just add them to candidate structures?
                 self.candidate_structures.append(current_GCC.subgraph(hubset_subgraph))
+                mdl_encoding(self.candidate_structures[-1], self.total_num_nodes)
+                # self.mdl_workers.apply_async(mdl_encoding, args=self.candidate_structures[-1], callback=self.collect_mdl_results)
 
             current_GCC.remove_nodes_from(k_hubset)  # remove the k hubset from G, so now we have G' (slash!)
             self.gamma = np.insert(self.gamma, 0, k_hubset)  # add removed k hubset to the front of gamma
@@ -97,8 +101,9 @@ class VoG:
             sorted_sub_graphs = sorted(sorted_sub_graphs, key=itemgetter(1), reverse=True)
 
             for sub_graph, num_nodes in sorted_sub_graphs:  # iterate over the remaining subgraphs we are "burning"
-                self.mdl_workers.apply_async(mdl_encoding, args=sub_graph, callback=self.collect_mdl_results)
                 if sub_graph.number_of_nodes() <= gcc_num_nodes_criterion:
+                    # self.mdl_workers.apply_async(mdl_encoding, args=(sub_graph, self.total_num_nodes), callback=self.collect_mdl_results)
+                    mdl_encoding(sub_graph, self.total_num_nodes)
                     self.candidate_structures.append(sub_graph)  # meets the criterion, goes to candidate structures
                 else:
                     self.GCCs.append(sub_graph)  # append the subgraph to GCCs queue
@@ -110,13 +115,73 @@ class VoG:
         self.mdl_workers.join()
 
     def collect_mdl_results(self, result):
+        print result
         self.mdl_results.append(result)
 
-
-def mdl_encoding(self, sub_graph):
+def mdl_encoding(sub_graph, total_num_nodes):
+    # a = MdlEncoding(sub_graph, total_num_nodes)
     # TODO: perform MDL encodings
-    return sub_graph
+    return 5
+
+class MdlEncoding:
+    def __init__(self, graph, total_num_nodes):
+        self.graph = graph
+        self.encode_star()
+        self.total_num_nodes = total_num_nodes
+        self.c = log(2.865064, 2)
+
+    def Ln(self, n):
+        logterm = log(n, 2)
+        while logterm > 0:
+            c = c + logterm
+            logterm = log(logterm, 2)
+        return c
+
+    def nll(self, incl, excl, sub):
+        if sub == 0:
+            l = -log((excl / (incl + excl)), 2)
+        elif sub == 1:
+            l = -log((incl / (incl + excl)), 2)
+        return l
+
+    def lnu_opt(self, e_inc, e_exc):
+        c_err = Ln(e_inc) + e_inc*nll(e_inc, e_exc, 1) + e_exc*nll(e_inc, e_exc, 0)
+    
+    def l2cnk(self, n, k):
+        nbits = 0;
+        for i in range(n, n-k, -1):
+            nbits = nbits + log(i, 2)
+        
+        for i in range(k, 0, -1):
+            nbits = nbits - log(i, 2)
+        return nbits
+
+    def encode_star(self):
+        # sorted list of node degree tuples in format (node, degree) in descending order
+        star_node_degrees = sorted(self.graph.degree_iter(), key=itemgetter(1), reverse=True)
+        num_nodes = len(star_node_degrees)
+        
+        if num_nodes <= 3:
+            return
+
+        # remove star hub from node, degree list
+        max_degree_node_idx = star_node_degrees[0][0]
+        del star_node_degrees[0]
+        
+        num_missing_edges = (num_nodes - 1 -len(self.graph.neighbors(max_degree_node_idx)))
+        satellite_node_indexes = [d[0] for d in star_node_degrees]
+        num_extra_edges = self.graph.subgraph(satellite_node_indexes).number_of_edges()
+        num_non_star_edges = 2*(num_missing_edges) + num_extra_edges 
+        E = (num_non_star_edges, (num_nodes**2 - num_non_star_edges))
+
+        if (E[0] == 0 or E[1] == 0):
+            mdl_cost = Ln(num_nodes-1) + log(self.total_num_nodes, 2) + l2cnk(self.total_num_nodes-1, num_nodes-1)
+        else:
+            mdl_cost = Ln( num_nodes-1 ) + log(self.total_num_nodes, 2) + l2cnk(self.total_num_nodes-1, num_nodes-1) + lnu_opt( E );
+
 
 
 if __name__ == '__main__':
-    vog = VoG('sb_paper_graph.txt')
+    # vog = VoG('sb_paper_graph.txt')
+    # vog = VoG('../DATA/cliqueStarClique.out')
+    vog = VoG('./test_star2.txt')
