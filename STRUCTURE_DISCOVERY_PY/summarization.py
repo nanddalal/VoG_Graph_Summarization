@@ -87,7 +87,9 @@ class VoG:
                 # TODO: should we consider the size of these subgraphs or just add them to candidate structures?
                 self.candidate_structures.append(current_GCC.subgraph(hubset_subgraph))
                 mdl_encoding(self.candidate_structures[-1], self.total_num_nodes)
-                # self.mdl_workers.apply_async(mdl_encoding, args=self.candidate_structures[-1], callback=self.collect_mdl_results)
+                # self.mdl_workers.apply_async(mdl_encoding,
+                #                              args=(self.candidate_structures[-1], self.total_num_nodes),
+                #                              callback=self.collect_mdl_results)
 
             current_GCC.remove_nodes_from(k_hubset)  # remove the k hubset from G, so now we have G' (slash!)
             self.gamma = np.insert(self.gamma, 0, k_hubset)  # add removed k hubset to the front of gamma
@@ -102,7 +104,9 @@ class VoG:
 
             for sub_graph, num_nodes in sorted_sub_graphs:  # iterate over the remaining subgraphs we are "burning"
                 if sub_graph.number_of_nodes() <= gcc_num_nodes_criterion:
-                    # self.mdl_workers.apply_async(mdl_encoding, args=(sub_graph, self.total_num_nodes), callback=self.collect_mdl_results)
+                    # self.mdl_workers.apply_async(mdl_encoding,
+                    #                              args=(sub_graph, self.total_num_nodes),
+                    #                              callback=self.collect_mdl_results)
                     mdl_encoding(sub_graph, self.total_num_nodes)
                     self.candidate_structures.append(sub_graph)  # meets the criterion, goes to candidate structures
                 else:
@@ -110,7 +114,6 @@ class VoG:
                 # add the nodes in the non-GCC to the back of gamma
                 self.gamma = np.append(self.gamma, sub_graph.nodes())
 
-        print
         self.mdl_workers.close()
         self.mdl_workers.join()
 
@@ -118,19 +121,21 @@ class VoG:
         print result
         self.mdl_results.append(result)
 
+
 def mdl_encoding(sub_graph, total_num_nodes):
-    # a = MdlEncoding(sub_graph, total_num_nodes)
-    # TODO: perform MDL encodings
+    mdl = MdlEncoding(sub_graph, total_num_nodes)
     return 5
+
 
 class MdlEncoding:
     def __init__(self, graph, total_num_nodes):
         self.graph = graph
-        self.encode_star()
         self.total_num_nodes = total_num_nodes
-        self.c = log(2.865064, 2)
+
+        self.encode_star()
 
     def Ln(self, n):
+        c = log(2.865064, 2)
         logterm = log(n, 2)
         while logterm > 0:
             c = c + logterm
@@ -139,16 +144,17 @@ class MdlEncoding:
 
     def nll(self, incl, excl, sub):
         if sub == 0:
-            l = -log((excl / (incl + excl)), 2)
+            l = -log((excl / float(incl + excl)), 2)
         elif sub == 1:
-            l = -log((incl / (incl + excl)), 2)
+            l = -log((incl / float(incl + excl)), 2)
         return l
 
     def lnu_opt(self, e_inc, e_exc):
-        c_err = Ln(e_inc) + e_inc*nll(e_inc, e_exc, 1) + e_exc*nll(e_inc, e_exc, 0)
+        c_err = self.Ln(e_inc) + e_inc*self.nll(e_inc, e_exc, 1) + e_exc*self.nll(e_inc, e_exc, 0)
+        return c_err
     
     def l2cnk(self, n, k):
-        nbits = 0;
+        nbits = 0
         for i in range(n, n-k, -1):
             nbits = nbits + log(i, 2)
         
@@ -168,17 +174,23 @@ class MdlEncoding:
         max_degree_node_idx = star_node_degrees[0][0]
         del star_node_degrees[0]
         
-        num_missing_edges = (num_nodes - 1 -len(self.graph.neighbors(max_degree_node_idx)))
+        num_missing_edges = (num_nodes - 1 - len(self.graph.neighbors(max_degree_node_idx)))
         satellite_node_indexes = [d[0] for d in star_node_degrees]
         num_extra_edges = self.graph.subgraph(satellite_node_indexes).number_of_edges()
-        num_non_star_edges = 2*(num_missing_edges) + num_extra_edges 
+        num_non_star_edges = 2*num_missing_edges + num_extra_edges
         E = (num_non_star_edges, (num_nodes**2 - num_non_star_edges))
 
-        if (E[0] == 0 or E[1] == 0):
-            mdl_cost = Ln(num_nodes-1) + log(self.total_num_nodes, 2) + l2cnk(self.total_num_nodes-1, num_nodes-1)
+        if E[0] == 0 or E[1] == 0:
+            mdl_cost = self.Ln(num_nodes-1) \
+                       + log(self.total_num_nodes, 2) \
+                       + self.l2cnk(self.total_num_nodes-1, num_nodes-1)
         else:
-            mdl_cost = Ln( num_nodes-1 ) + log(self.total_num_nodes, 2) + l2cnk(self.total_num_nodes-1, num_nodes-1) + lnu_opt( E );
+            mdl_cost = self.Ln(num_nodes-1) \
+                       + log(self.total_num_nodes, 2) \
+                       + self.l2cnk(self.total_num_nodes-1, num_nodes-1) \
+                       + self.lnu_opt(E[0], E[1])
 
+        return mdl_cost
 
 
 if __name__ == '__main__':
