@@ -165,7 +165,7 @@ class MdlEncoding:
             nbits = nbits - log(i, 2)
         return nbits
 
-    # TODO: make this efficient, and verify against Matlab code
+    # TODO: make this efficient
     def encode_star(self):
         # sorted list of node degree tuples in format (node, degree) in descending order
         star_node_degrees = sorted(self.graph.degree_iter(), key=itemgetter(1), reverse=True)
@@ -180,7 +180,7 @@ class MdlEncoding:
         
         num_missing_edges = (num_nodes - 1 - len(self.graph.neighbors(max_degree_node_idx)))
         satellite_node_indexes = [d[0] for d in star_node_degrees]
-        num_extra_edges = self.graph.subgraph(satellite_node_indexes).number_of_edges()
+        num_extra_edges = self.graph.subgraph(satellite_node_indexes).number_of_edges()*2
         num_non_star_edges = 2*num_missing_edges + num_extra_edges
         E = (num_non_star_edges, (num_nodes**2 - num_non_star_edges))
 
@@ -192,7 +192,7 @@ class MdlEncoding:
             mdl_cost = self.Ln(num_nodes-1) \
                        + log(self.total_num_nodes, 2) \
                        + self.l2cnk(self.total_num_nodes-1, num_nodes-1) \
-                       + self.lnu_opt(E[0], E[1])
+                       + self.lnu_opt(E[0], E[1])  # TODO: not clear why we need this line
 
         return mdl_cost
 
@@ -239,6 +239,7 @@ class MdlEncoding:
                   + self.l2cnk(N_tot - k, l)
 
         return MDLcost
+
 
 if __name__ == '__main__':
     # vog = VoG('sb_paper_graph.txt')
