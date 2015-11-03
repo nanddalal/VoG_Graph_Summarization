@@ -12,7 +12,7 @@ class VoG:
         self.mdl_results = []
         self.parse_adj_list_file(input_file)
         self.mdl_workers = mp.Pool(processes=(mp.cpu_count() * 2))
-        self.slash_burn_multiple_gcc(1, gcc_num_nodes_criterion=500)
+        self.slash_burn_multiple_gcc(1)
 
     # TODO: this assumes a 1 indexed adjacency list
     def parse_adj_list_file(self, input_file):
@@ -58,7 +58,7 @@ class VoG:
             # 3
             self.G = GCC
 
-    def slash_burn_multiple_gcc(self, k, gcc_num_nodes_criterion=3):
+    def slash_burn_multiple_gcc(self, k, gcc_num_nodes_criterion=1000):
         """ Peforms SlashBurn algorithm for subgraph generation
         
         Args:
@@ -66,14 +66,14 @@ class VoG:
             gcc_num_nodes_criterion: the inclusive upper-bound criterion for a subgraph to be a GCC which will be burned
         """
 
-        self.GCCs = [self.G]  # all the GCCs that meet the criterion, acts as a queue
+        GCCs = [self.G]  # all the GCCs that meet the criterion, acts as a queue
         self.gamma = np.array([])  # deque
         self.candidate_structures = []
 
-        while len(self.GCCs) > 0:
+        while len(GCCs) > 0:
             # TODO: O(n) operation, but we might still have to do BFS instead of DFS - global for external access?
-            current_GCC = self.GCCs[0]  # extract the first element of self.GCCs
-            self.GCCs = self.GCCs[1:]  # remove the first element of self.GCCs
+            current_GCC = GCCs[0]  # extract the first element of GCCs
+            GCCs = GCCs[1:]  # remove the first element of GCCs
 
             # 1
             # get a sorted list of (node, degree) in decreasing order
@@ -110,7 +110,7 @@ class VoG:
                     mdl_encoding(sub_graph, self.total_num_nodes)
                     self.candidate_structures.append(sub_graph)  # meets the criterion, goes to candidate structures
                 else:
-                    self.GCCs.append(sub_graph)  # append the subgraph to GCCs queue
+                    GCCs.append(sub_graph)  # append the subgraph to GCCs queue
                 # add the nodes in the non-GCC to the back of gamma
                 self.gamma = np.append(self.gamma, sub_graph.nodes())
 
@@ -132,7 +132,8 @@ class MdlEncoding:
         self.graph = graph
         self.total_num_nodes = total_num_nodes
 
-        self.encode_star()
+        print "STAR", self.encode_star()
+        print "BIPARTITE CORE", self.encode_bipartite_core()
 
     def Ln(self, n):
         c = log(2.865064, 2)
@@ -150,7 +151,9 @@ class MdlEncoding:
         return l
 
     def lnu_opt(self, e_inc, e_exc):
-        c_err = self.Ln(e_inc) + e_inc*self.nll(e_inc, e_exc, 1) + e_exc*self.nll(e_inc, e_exc, 0)
+        c_err = self.Ln(e_inc) \
+                + e_inc*self.nll(e_inc, e_exc, 1) \
+                + e_exc*self.nll(e_inc, e_exc, 0)
         return c_err
     
     def l2cnk(self, n, k):
@@ -162,6 +165,7 @@ class MdlEncoding:
             nbits = nbits - log(i, 2)
         return nbits
 
+    # TODO: make this efficient
     def encode_star(self):
         # sorted list of node degree tuples in format (node, degree) in descending order
         star_node_degrees = sorted(self.graph.degree_iter(), key=itemgetter(1), reverse=True)
@@ -176,7 +180,7 @@ class MdlEncoding:
         
         num_missing_edges = (num_nodes - 1 - len(self.graph.neighbors(max_degree_node_idx)))
         satellite_node_indexes = [d[0] for d in star_node_degrees]
-        num_extra_edges = self.graph.subgraph(satellite_node_indexes).number_of_edges()
+        num_extra_edges = self.graph.subgraph(satellite_node_indexes).number_of_edges()*2
         num_non_star_edges = 2*num_missing_edges + num_extra_edges
         E = (num_non_star_edges, (num_nodes**2 - num_non_star_edges))
 
@@ -188,12 +192,56 @@ class MdlEncoding:
             mdl_cost = self.Ln(num_nodes-1) \
                        + log(self.total_num_nodes, 2) \
                        + self.l2cnk(self.total_num_nodes-1, num_nodes-1) \
-                       + self.lnu_opt(E[0], E[1])
+                       + self.lnu_opt(E[0], E[1])  # TODO: not clear why we need this line
 
         return mdl_cost
+
+    def encode_bipartite_core(self):
+        Asmall = nx.to_numpy_matrix(self.graph)
+        h = -0.01
+        positive = 0.01
+        negative = -0.01
+        a = 4 * (h**2) / (1 - 4 * (h**2))
+        c = 2 * h / (1 - 4 * (h**2))
+        n = len(Asmall)
+        if n < 3:
+            return
+        deg = np.array(Asmall.sum(axis=0)).flatten()
+        D = np.diag(deg)
+        matI = np.eye(n)
+        phi = np.zeros(n)
+        idx = np.argmax(deg)
+        neighbors = np.array(Asmall[idx]).flatten().nonzero()
+        phi[idx] = positive
+        phi[neighbors] = negative
+        b = np.dot(np.linalg.inv(matI + a * D - c * Asmall), phi)
+
+        set1 = np.array((b > 0)).flatten()
+        set2 = np.array((b < 0)).flatten()
+        M = np.zeros((n, n))
+        # TODO: cannot seem to find a way to do logical slicing like in Matlab
+        for i in range(n):
+            for j in range(n):
+                if set1[i] and set2[j]:
+                    M[i, j] = 1
+        E = np.logical_xor(M, Asmall)
+
+        N_tot = self.total_num_nodes
+        n_sub = sum(set1)
+        E = np.array(E)
+        n_sub2 = sum(set2)
+
+        k = n_sub
+        l = n_sub2
+        MDLcost = self.Ln(k) \
+                  + self.Ln(l) \
+                  + self.l2cnk(N_tot, k) \
+                  + self.l2cnk(N_tot - k, l)
+
+        return MDLcost
 
 
 if __name__ == '__main__':
     # vog = VoG('sb_paper_graph.txt')
     # vog = VoG('../DATA/cliqueStarClique.out')
-    vog = VoG('./test_star2.txt')
+    vog = VoG('./test_bipartite_core.txt')
