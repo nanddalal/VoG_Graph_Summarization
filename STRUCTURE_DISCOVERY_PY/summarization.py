@@ -86,10 +86,9 @@ class VoG:
                 hubset_subgraph.append(node)
                 # TODO: should we consider the size of these subgraphs or just add them to candidate structures?
                 self.candidate_structures.append(current_GCC.subgraph(hubset_subgraph))
-                mdl_encoding(self.candidate_structures[-1], self.total_num_nodes)
-                # self.mdl_workers.apply_async(mdl_encoding,
-                #                              args=(self.candidate_structures[-1], self.total_num_nodes),
-                #                              callback=self.collect_mdl_results)
+                self.mdl_workers.apply_async(mdl_encoding,
+                                             args=(self.candidate_structures[-1], self.total_num_nodes),
+                                             callback=self.collect_mdl_results)
 
             current_GCC.remove_nodes_from(k_hubset)  # remove the k hubset from G, so now we have G' (slash!)
             self.gamma = np.insert(self.gamma, 0, k_hubset)  # add removed k hubset to the front of gamma
@@ -104,10 +103,9 @@ class VoG:
 
             for sub_graph, num_nodes in sorted_sub_graphs:  # iterate over the remaining subgraphs we are "burning"
                 if sub_graph.number_of_nodes() <= gcc_num_nodes_criterion:
-                    # self.mdl_workers.apply_async(mdl_encoding,
-                    #                              args=(sub_graph, self.total_num_nodes),
-                    #                              callback=self.collect_mdl_results)
-                    mdl_encoding(sub_graph, self.total_num_nodes)
+                    self.mdl_workers.apply_async(mdl_encoding,
+                                                 args=(sub_graph, self.total_num_nodes),
+                                                 callback=self.collect_mdl_results)
                     self.candidate_structures.append(sub_graph)  # meets the criterion, goes to candidate structures
                 else:
                     GCCs.append(sub_graph)  # append the subgraph to GCCs queue
@@ -117,14 +115,10 @@ class VoG:
         self.mdl_workers.close()
         self.mdl_workers.join()
 
+        print self.mdl_results
+
     def collect_mdl_results(self, result):
-        print result
         self.mdl_results.append(result)
-
-
-def mdl_encoding(sub_graph, total_num_nodes):
-    mdl = MdlEncoding(sub_graph, total_num_nodes)
-    return 5
 
 
 class MdlEncoding:
@@ -132,8 +126,8 @@ class MdlEncoding:
         self.graph = graph
         self.total_num_nodes = total_num_nodes
 
-        print "STAR", self.encode_star()
-        print "BIPARTITE CORE", self.encode_bipartite_core()
+        self.encode_star()
+        self.encode_bipartite_core()
 
     def Ln(self, n):
         c = log(2.865064, 2)
@@ -194,7 +188,7 @@ class MdlEncoding:
                        + self.l2cnk(self.total_num_nodes-1, num_nodes-1) \
                        + self.lnu_opt(E[0], E[1])  # TODO: not clear why we need this line
 
-        return mdl_cost
+        self.mdl_cost = mdl_cost
 
     def encode_bipartite_core(self):
         Asmall = nx.to_numpy_matrix(self.graph)
@@ -238,7 +232,17 @@ class MdlEncoding:
                   + self.l2cnk(N_tot, k) \
                   + self.l2cnk(N_tot - k, l)
 
-        return MDLcost
+        if self.mdl_cost > MDLcost:
+            self.mdl_cost = MDLcost
+
+
+def mdl_encoding(sub_graph, total_num_nodes):
+    try:
+        mdl = MdlEncoding(sub_graph, total_num_nodes)
+        return mdl.mdl_cost
+    except:
+        # Put all exception text into an exception and raise that
+        raise Exception("".join(traceback.format_exception(*sys.exc_info())))
 
 
 if __name__ == '__main__':
