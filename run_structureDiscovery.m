@@ -1,5 +1,5 @@
-%  input_file = 'DATA/cliqueStarClique.out';
- input_file = 'STRUCTURE_DISCOVERY_PY/sb_paper_graph.txt';
+ input_file = 'DATA/cliqueStarClique.out';
+%  input_file = 'STRUCTURE_DISCOVERY_PY/test_bipartite_core.txt';
  unweighted_graph = input_file;
  output_model_greedy = 'DATA';
  output_model_top10 = 'DATA';
@@ -20,4 +20,4 @@
  model_idx = 0;
  SlashBurnEncode( orig_sym_nodiag, 2, output_model_greedy, false, false, 3, unweighted_graph);
 
- quit
+%  quit
