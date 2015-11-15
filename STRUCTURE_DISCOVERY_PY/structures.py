@@ -38,6 +38,22 @@ def l2cnk(n, k):
     return nbits
 
 
+class Clique:
+    def __init__(self, graph, total_num_nodes):
+        self.graph = graph
+        self.total_num_nodes = total_num_nodes
+
+    def compute_mdl_cost(self):
+        Asmall = nx.to_numpy_matrix(self.graph)
+        E = (len(Asmall)**2 - len(Asmall) - np.count_nonzero(Asmall), np.count_nonzero(Asmall))
+        if E[0] == 0 or E[1] == 0:  # no excluded edges
+            mdl_cost = ln(len(Asmall)) + l2cnk(self.total_num_nodes, len(Asmall))
+        else:
+            mdl_cost = ln(len(Asmall)) + l2cnk(self.total_num_nodes, len(Asmall)) + lnu_opt(E[0], E[1])
+
+        self.mdl_cost = mdl_cost
+
+
 class Star:
     def __init__(self, graph, total_num_nodes):
         self.graph = graph
@@ -50,6 +66,7 @@ class Star:
         num_nodes = len(star_node_degrees)
 
         if num_nodes <= 3:
+            self.mdl_cost = np.inf
             return
 
         # remove star hub from node, degree list
@@ -70,7 +87,7 @@ class Star:
             mdl_cost = ln(num_nodes-1) \
                        + log(self.total_num_nodes, 2) \
                        + l2cnk(self.total_num_nodes-1, num_nodes-1) \
-                       + lnu_opt(E[0], E[1])  # TODO: not clear why we need this line
+                       + lnu_opt(E[0], E[1])
 
         self.mdl_cost = mdl_cost
 
@@ -89,6 +106,7 @@ class BipartiteCore:
         c = 2 * h / (1 - 4 * (h**2))
         n = len(Asmall)
         if n < 3:
+            self.mdl_cost = np.inf
             return
         deg = np.array(Asmall.sum(axis=0)).flatten()
         D = np.diag(deg)
@@ -99,29 +117,35 @@ class BipartiteCore:
         phi[idx] = positive
         phi[neighbors] = negative
         b = np.dot(np.linalg.inv(matI + a * D - c * Asmall), phi)
+        b = np.array(b).flatten()
 
-        set1 = np.array((b > 0)).flatten()
-        set2 = np.array((b < 0)).flatten()
-        M = np.zeros((n, n))
-        # TODO: cannot seem to find a way to do logical slicing like in Matlab
-        for i in range(n):
-            for j in range(n):
-                if set1[i] and set2[j]:
-                    M[i, j] = 1
-        E = np.logical_xor(M, Asmall)
+        set1 = np.array(b > 0)
+        set2 = np.array(b < 0)
+        Einc = 2*(set1.sum()*set2.sum()-np.count_nonzero(Asmall[set1][:, set2])) + np.count_nonzero(Asmall[set1][:, set1]) + np.count_nonzero(Asmall[set2][:, set2])
+        Eexc = len(Asmall)**2 - Einc
+        # M = np.zeros((n, n))
+        # M[set1][:, set2] = 1
+        # M[set2][:, set1] = 1
+        # E = np.logical_xor(M, Asmall)
 
         N_tot = self.total_num_nodes
-        n_sub = sum(set1)
-        E = np.array(E)
-        n_sub2 = sum(set2)
+        n_sub = set1.sum()
+        E = [Einc, Eexc]
+        n_sub2 = set2.sum()
 
         k = n_sub
         l = n_sub2
-        # TODO: how do we run lnu_opt - look at near bipartite core code
-        mdl_cost = ln(k) \
-                   + ln(l) \
-                   + l2cnk(N_tot, k) \
-                   + l2cnk(N_tot - k, l)
+        if E[0] == 0 or E[1] == 0:
+            mdl_cost = ln(k) \
+                       + ln(l) \
+                       + l2cnk(N_tot, k) \
+                       + l2cnk(N_tot - k, l)
+        else:
+            mdl_cost = ln(k) \
+                       + ln(l) \
+                       + l2cnk(N_tot, k) \
+                       + l2cnk(N_tot - k, l) \
+                       + lnu_opt(E[0], E[1])
 
         self.mdl_cost = mdl_cost
 
@@ -140,5 +164,6 @@ class Error:
             mdl_cost = ln(E[0])
         elif E[1] != 0:
             mdl_cost = ln(E[1])
+
         self.mdl_cost = mdl_cost
 
