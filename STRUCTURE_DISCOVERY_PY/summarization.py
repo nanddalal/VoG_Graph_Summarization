@@ -4,6 +4,7 @@ import traceback
 import numpy as np
 import networkx as nx
 import multiprocessing as mp
+import matplotlib.pyplot as plt
 from operator import itemgetter
 
 import structures
@@ -13,6 +14,8 @@ class VoG:
     def __init__(self, input_file, parallel=False):
         self.top_k_structures = []
         self.parse_adj_list_file(input_file)
+        fig_before = plt.figure()
+        nx.draw_graphviz(self.G)
         self.parallel = parallel
         if parallel:
             self.workers = mp.Pool(processes=(mp.cpu_count() * 2))
@@ -27,6 +30,11 @@ class VoG:
             elif s.__class__ == structures.Error:
                 print "error"
             print s.graph.nodes()
+        fig_after = plt.figure()
+        nx.draw_graphviz(self.G)
+        plt.show()
+        plt.close(fig_before)
+        plt.close(fig_after)
 
     # TODO: this assumes a 1 indexed adjacency list
     def parse_adj_list_file(self, input_file):
@@ -94,12 +102,9 @@ class VoG:
 
             print "Spinning off labeling for connected components less than certain size"
             # iterate over the remaining subgraphs we are "burning"
-            i = 0
             for sub_graph, num_nodes in sorted_sub_graphs:
-                if i == 0:
-                # if sub_graph.number_of_nodes() <= gcc_num_nodes_criterion:
+                if sub_graph.number_of_nodes() <= gcc_num_nodes_criterion:
                     self.process_subgraph(sub_graph)
-                    i+=1
                 else:
                     # append the subgraph to GCCs queue
                     gcc_queue.append(sub_graph)
