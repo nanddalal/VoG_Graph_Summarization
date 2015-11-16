@@ -15,11 +15,15 @@ class VoG:
         self.top_k_structures = []
         self.parse_adj_list_file(input_file)
         fig_before = plt.figure()
-        nx.draw_graphviz(self.G)
+        pos = nx.spring_layout(self.G)
+        nx.draw_networkx_nodes(self.G, pos)
+        nx.draw_networkx_edges(self.G, pos)
+        nx.draw_networkx_labels(self.G, pos)
         self.parallel = parallel
         if parallel:
             self.workers = mp.Pool(processes=(mp.cpu_count() * 2))
         self.perform_slash_burn(1)
+        self.top_k_structures = sorted(self.top_k_structures, key=lambda k: k.mdl_cost, reverse=True)
         for s in self.top_k_structures:
             if s.__class__ == structures.Clique:
                 print "clique"
@@ -31,7 +35,10 @@ class VoG:
                 print "error"
             print s.graph.nodes()
         fig_after = plt.figure()
-        nx.draw_graphviz(self.G)
+        pos = nx.spring_layout(self.G)
+        nx.draw_networkx_nodes(self.G, pos)
+        nx.draw_networkx_edges(self.G, pos)
+        nx.draw_networkx_labels(self.G, pos)
         plt.show()
         plt.close(fig_before)
         plt.close(fig_after)
@@ -54,7 +61,7 @@ class VoG:
         self.total_num_nodes = self.G.number_of_nodes()
         self.total_num_edges = self.G.number_of_edges()
 
-    def perform_slash_burn(self, k, gcc_num_nodes_criterion=1000):
+    def perform_slash_burn(self, k, gcc_num_nodes_criterion=7):
         """ Peforms SlashBurn algorithm for subgraph generation
         
         Args:
