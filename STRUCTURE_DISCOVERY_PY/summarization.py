@@ -13,35 +13,30 @@ import structures
 class VoG:
     def __init__(self, input_file, parallel=False):
         self.top_k_structures = []
+
         self.parse_adj_list_file(input_file)
-        fig_before = plt.figure()
-        pos = nx.spring_layout(self.G)
-        nx.draw_networkx_nodes(self.G, pos)
-        nx.draw_networkx_edges(self.G, pos)
-        nx.draw_networkx_labels(self.G, pos)
+        self.visualize_graph()
+
         self.parallel = parallel
         if parallel:
             self.workers = mp.Pool(processes=(mp.cpu_count() * 2))
+
         self.perform_slash_burn(1)
-        self.top_k_structures = sorted(self.top_k_structures, key=lambda k: k.mdl_cost, reverse=True)
+
+        self.top_k_structures = sorted(self.top_k_structures, key=lambda k: k.benefit, reverse=True)
         for s in self.top_k_structures:
-            if s.__class__ == structures.Clique:
-                print "clique"
-            elif s.__class__ == structures.Star:
-                print "star"
-            elif s.__class__ == structures.BipartiteCore:
-                print "bipartite_core"
-            elif s.__class__ == structures.Error:
-                print "error"
-            print s.graph.nodes()
-        fig_after = plt.figure()
+            print s.__class__.__name__, s.graph.nodes()
+
+        self.visualize_graph()
+        plt.show()
+        plt.close()
+
+    def visualize_graph(self):
+        fig = plt.figure()
         pos = nx.spring_layout(self.G)
         nx.draw_networkx_nodes(self.G, pos)
         nx.draw_networkx_edges(self.G, pos)
         nx.draw_networkx_labels(self.G, pos)
-        plt.show()
-        plt.close(fig_before)
-        plt.close(fig_after)
 
     # TODO: this assumes a 1 indexed adjacency list
     def parse_adj_list_file(self, input_file):
@@ -137,14 +132,18 @@ class VoG:
 
 def mdl_encoding(sub_graph, total_num_nodes):
     # try:
+        err = structures.Error(sub_graph, total_num_nodes)
+        err.compute_mdl_cost()
         structure_types = [
             structures.Clique(sub_graph, total_num_nodes),
             structures.Star(sub_graph, total_num_nodes),
             structures.BipartiteCore(sub_graph, total_num_nodes),
-            structures.Error(sub_graph, total_num_nodes)
         ]
         for st in structure_types:
             st.compute_mdl_cost()
+            st.benefit = err.mdl_cost - st.mdl_cost
+        err.benefit = 0
+        structure_types.append(err)
         optimal_structure = min(structure_types, key=lambda k: k.mdl_cost)
         return optimal_structure
     # except:
