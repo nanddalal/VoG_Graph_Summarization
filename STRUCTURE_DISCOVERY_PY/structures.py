@@ -2,6 +2,7 @@ from operator import itemgetter
 from math import log
 import numpy as np
 import networkx as nx
+import sys
 
 
 def ln(n):
@@ -37,6 +38,71 @@ def l2cnk(n, k):
         nbits -= log(i, 2)
     return nbits
 
+class Chain:
+    def __init__(self, graph, total_num_nodes):
+        self.graph = graph
+        self.total_num_nodes = total_num_nodes
+
+    def compute_mdl_cost(self):
+        if nx.number_of_nodes(self.graph) < 3:
+            self.mdl_cost = np.inf  # set the mdl_cost as Chain to be maximum so it won't be chosen
+            return
+        Asmall = nx.to_numpy_matrix(self.graph)
+        deg = np.sum(Asmall, axis=0)
+        min_deg_ind = np.argmin(deg)
+        p_init, empty_chain = self.bfs(Asmall, min_deg_ind, path=False)
+        p_fin, chain = self.bfs(Asmall, p_init, path=True)
+        missing = 0
+        existing = 0
+        for i in range(0, len(chain) - 1):
+            if Asmall[chain[i], chain[i+1]] == 0:
+                missing += 1
+            else:
+                existing += 1
+        E_0 = 2 * missing + (np.count_nonzero(Asmall) - 2 * existing)
+        E = (E_0, nx.number_of_nodes(self.graph) ** 2 - E_0)
+
+        x = list(xrange(nx.number_of_nodes(self.graph)))
+        n_tot_vec = self.total_num_nodes * np.ones((nx.number_of_nodes(self.graph),), dtype=np.int)
+        if E[0] == 0 or E[1] == 0:
+            mdl_cost = ln(nx.number_of_nodes(self.graph) - 1) + sum(np.log2(n_tot_vec - x));
+        else:
+            mdl_cost = ln(nx.number_of_nodes(self.graph) - 1) + sum(np.log2(n_tot_vec - x) ) + lnu_opt(E[0], E[1]);
+
+        self.mdl_cost = mdl_cost
+
+    def bfs(self, Asmall, start, path=True):
+        queue = [start]
+        chain = []
+        extra_nodes_search = np.ones((nx.number_of_nodes(self.graph),), dtype=np.int)
+        node_list = -1 * np.ones((nx.number_of_nodes(self.graph),), dtype=np.int)
+        node_list[start] = start
+        # print node_list
+
+        while queue:
+            # print "Current queue[0]:", queue[0]
+            neighbors = np.array(np.nonzero(Asmall[queue[0], :])[1])[0, :] # get neighbors as numpy array
+            # print "neighbors size:", np.size(neighbors)
+            for i in range(0, np.size(neighbors)):
+                if node_list[neighbors[i]] == -1:
+                    node_list[neighbors[i]] = queue[0]
+                    queue.append(neighbors[i])
+            qsize = len(queue)
+            furthest_node = queue[qsize - 1]
+            queue = queue[1:]
+
+        if path:
+            curr = furthest_node
+            while curr != start:
+                chain.append(curr)
+                extra_nodes_search[curr] = 0
+                curr = node_list[curr]
+            chain.append(start)
+            chain = list(reversed(chain))
+            # print "chain:", chain
+            extra_nodes_search[start] = 0
+
+        return furthest_node, chain
 
 class Clique:
     def __init__(self, graph, total_num_nodes):
@@ -167,3 +233,10 @@ class Error:
 
         self.mdl_cost = mdl_cost
 
+if __name__ == "__main__":
+    G = nx.Graph()
+    G.add_path([7, 6, 1, 0, 2, 3, 4, 5])
+    G.add_path([4, 8])
+    G.add_path([9, 0])
+    chain = Chain(G, 40)
+    chain.compute_mdl_cost()

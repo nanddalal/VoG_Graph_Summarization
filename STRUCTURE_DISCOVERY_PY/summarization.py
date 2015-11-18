@@ -25,7 +25,9 @@ class VoG:
         self.perform_slash_burn(1)
         self.top_k_structures = sorted(self.top_k_structures, key=lambda k: k.mdl_cost, reverse=True)
         for s in self.top_k_structures:
-            if s.__class__ == structures.Clique:
+            if s.__class__ == structures.Chain:
+                print "chain"
+            elif s.__class__ == structures.Clique:
                 print "clique"
             elif s.__class__ == structures.Star:
                 print "star"
@@ -138,6 +140,7 @@ class VoG:
 def mdl_encoding(sub_graph, total_num_nodes):
     # try:
         structure_types = [
+            structures.Chain(sub_graph, total_num_nodes),
             structures.Clique(sub_graph, total_num_nodes),
             structures.Star(sub_graph, total_num_nodes),
             structures.BipartiteCore(sub_graph, total_num_nodes),
@@ -155,5 +158,5 @@ def mdl_encoding(sub_graph, total_num_nodes):
 if __name__ == '__main__':
     # vog = VoG('../DATA/cliqueStarClique.out')
     # vog = VoG('./test_bipartite_core.txt')
-    vog = VoG('./test_cliqueStarBC.txt')
-
+    # vog = VoG('./test_cliqueStarBC.txt')
+    vog = VoG('./test_cliqueStarBCChain.txt')
