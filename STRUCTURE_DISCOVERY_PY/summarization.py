@@ -135,6 +135,7 @@ def mdl_encoding(sub_graph, total_num_nodes):
         err = structures.Error(sub_graph, total_num_nodes)
         err.compute_mdl_cost()
         structure_types = [
+            structures.Chain(sub_graph, total_num_nodes),
             structures.Clique(sub_graph, total_num_nodes),
             structures.Star(sub_graph, total_num_nodes),
             structures.BipartiteCore(sub_graph, total_num_nodes),
@@ -154,5 +155,5 @@ def mdl_encoding(sub_graph, total_num_nodes):
 if __name__ == '__main__':
     # vog = VoG('../DATA/cliqueStarClique.out')
     # vog = VoG('./test_bipartite_core.txt')
-    vog = VoG('./test_cliqueStarBC.txt')
-
+    # vog = VoG('./test_cliqueStarBC.txt')
+    vog = VoG('./test_cliqueStarBCChain.txt')
