@@ -81,7 +81,6 @@ class Chain:
 
         while queue:
             # print "Current queue[0]:", queue[0]
-            print np.array(np.nonzero(Asmall[queue[0], :])[1])
             neighbors = np.array(np.nonzero(Asmall[queue[0], :])[1])  # get neighbors as numpy array
             # print "neighbors size:", np.size(neighbors)
             for i in range(0, np.size(neighbors)):
@@ -234,12 +233,4 @@ class Error:
             mdl_cost = ln(E[1])
 
         self.mdl_cost = mdl_cost
-
-if __name__ == "__main__":
-    G = nx.Graph()
-    G.add_path([7, 6, 1, 0, 2, 3, 4, 5])
-    G.add_path([4, 8])
-    G.add_path([9, 0])
-    chain = Chain(G, 40)
-    chain.compute_mdl_cost()
 
