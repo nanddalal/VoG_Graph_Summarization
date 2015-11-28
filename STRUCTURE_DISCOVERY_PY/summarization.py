@@ -7,6 +7,8 @@ import csv
 import math
 import heapq
 import numpy as np
+from scipy.sparse import csr_matrix
+from scipy import *
 import networkx as nx
 import multiprocessing as mp
 # import matplotlib.pyplot as plt
@@ -17,13 +19,13 @@ import structures
 
 class VoGTimeout(Exception):
     @staticmethod
-    def time_limit_handler(self, signum, frame):
+    def time_limit_handler(signum, frame):
         print "Reached specified time limit"
         raise VoGTimeout
 
 
 class VoG:
-    def __init__(self, input_file, slash_burn_k=1, top_k=10, time_limit=10, parallel=False):
+    def __init__(self, input_file, slash_burn_k=1, top_k=10, time_limit=1200, parallel=False):
         self.top_k = top_k
         self.top_k_structures = []
 
@@ -34,8 +36,10 @@ class VoG:
         self.parallel = parallel
         if parallel:
             self.workers = mp.Pool(processes=(mp.cpu_count() * 2))
-        signal.signal(signal.SIGALRM, VoGTimeout.time_limit_handler)
-        signal.alarm(time_limit)
+
+        # signal.signal(signal.SIGALRM, VoGTimeout.time_limit_handler)
+        signal.signal(signal.SIGINT, VoGTimeout.time_limit_handler)
+        # signal.alarm(time_limit)
 
         try:
             print "Performing slash burn"
@@ -66,16 +70,26 @@ class VoG:
     # TODO: this assumes a 1 indexed adjacency list
     def parse_adj_list_file(self, input_file):
         with open(input_file) as gf:
-            r = csv.reader(gf, delimiter=',')
+            r = csv.reader(gf, delimiter='\t')
             adj_list = np.array(list(r), int)
 
-        adj_mat = np.zeros((adj_list.max(), adj_list.max()))
-        adj_list -= 1
+        # adj_mat = np.zeros((adj_list.max(), adj_list.max()))
+        # adj_list -= 1
+        row, col, data = [], [], []
         for e in adj_list:
-            adj_mat[e[0], e[1]] = 1
-            adj_mat[e[1], e[0]] = 1
+            row.append(e[0])
+            col.append(e[1])
+            data.append(1)
 
-        self.G = nx.from_numpy_matrix(adj_mat)
+        adj_mat = csr_matrix((data, (row, col)), shape=(adj_list.max() + 1, adj_list.max() + 1), dtype=int8)
+        print "Adjacency Matrix created"
+        # for e in adj_list:
+        #     adj_mat[e[0], e[1]] = 1
+        #     adj_mat[e[1], e[0]] = 1
+
+        # self.G = nx.from_numpy_matrix(adj_mat)
+        self.G = nx.from_scipy_sparse_matrix(adj_mat)
+        print "NetworkX Graph created"
         self.total_num_nodes = self.G.number_of_nodes()
         self.total_num_edges = self.G.number_of_edges()
 
@@ -126,6 +140,7 @@ class VoG:
                 else:
                     # append the subgraph to GCCs queue
                     gcc_queue.append(sub_graph)
+                    print "gcc_queue appended, current gcc_queue size:", len(gcc_queue)
                 # add the nodes in the non-GCC to the back of gamma
                 self.gamma = np.append(self.gamma, sub_graph.nodes())
 
@@ -142,15 +157,22 @@ class VoG:
             self.collect_results(mdl_encoding(sub_graph, self.total_num_nodes))
 
     def collect_results(self, result):
+        print "collecting results!", result.__class__.__name__
         # TODO: handle race conditions here!!!
         if len(self.top_k_structures) < self.top_k:
             print "Adding", result.__class__.__name__
             heapq.heappush(self.top_k_structures, (result.benefit, result))
         else:
+            print result.__class__.__name__, result.benefit, self.top_k_structures[0][0]
             if self.top_k_structures[0][0] < result.benefit:
                 print "Adding", result.__class__.__name__, \
                     "and removing", self.top_k_structures[0][1].__class__.__name__
                 heapq.heappushpop(self.top_k_structures, (result.benefit, result))
+
+            self.top_k_structures.sort()
+            with open("vog_output.txt", "w+") as f_out:
+                for s in self.top_k_structures:
+                    f_out.write(s[1].__class__.__name__ + str(s[1].graph.nodes()) + "\n")
 
 
 def mdl_encoding(sub_graph, total_num_nodes):
@@ -169,6 +191,9 @@ def mdl_encoding(sub_graph, total_num_nodes):
         err.benefit = 0
         structure_types.append(err)
         optimal_structure = min(structure_types, key=lambda k: k.mdl_cost)
+        print "WE ARE ENCODING HERE!!!"
+        print subg_graph.edges()
+        print structure_types[2].mdl_cost, err.mdl_cost
         return optimal_structure
     # except:
         # Put all exception text into an exception and raise that
@@ -178,5 +203,6 @@ if __name__ == '__main__':
     # vog = VoG('../DATA/cliqueStarClique.out')
     # vog = VoG('./test_bipartite_core.txt')
     # vog = VoG('./test_cliqueStarBC.txt')
-    vog = VoG('./test_cliqueStarBCChain.txt')
+    # vog = VoG('./test_cliqueStarBCChain.txt', parallel=True)
+    vog = VoG('./soc-Epinions1.txt', parallel=True)
 
