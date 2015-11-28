@@ -169,11 +169,6 @@ class VoG:
                     "and removing", self.top_k_structures[0][1].__class__.__name__
                 heapq.heappushpop(self.top_k_structures, (result.benefit, result))
 
-            self.top_k_structures.sort()
-            with open("vog_output.txt", "w+") as f_out:
-                for s in self.top_k_structures:
-                    f_out.write(s[1].__class__.__name__ + str(s[1].graph.nodes()) + "\n")
-
 
 def mdl_encoding(sub_graph, total_num_nodes):
     # try:
