@@ -25,7 +25,7 @@ class VoGTimeout(Exception):
 
 
 class VoG:
-    def __init__(self, input_file, slash_burn_k=1, top_k=10, time_limit=1200, parallel=False):
+    def __init__(self, input_file, slash_burn_k=1, top_k=10, time_limit=10, parallel=False):
         self.top_k = top_k
         self.top_k_structures = []
 
@@ -37,7 +37,7 @@ class VoG:
         if parallel:
             self.workers = mp.Pool(processes=(mp.cpu_count() * 2))
 
-        # signal.signal(signal.SIGALRM, VoGTimeout.time_limit_handler)
+        signal.signal(signal.SIGALRM, VoGTimeout.time_limit_handler)
         signal.signal(signal.SIGINT, VoGTimeout.time_limit_handler)
         # signal.alarm(time_limit)
 
@@ -81,7 +81,7 @@ class VoG:
             col.append(e[1])
             data.append(1)
 
-        adj_mat = csr_matrix((data, (row, col)), shape=(adj_list.max() + 1, adj_list.max() + 1), dtype=int8)
+        adj_mat = csr_matrix((data, (row, col)), shape=(adj_list.max() + 1, adj_list.max() + 1), dtype=np.int8)
         print "Adjacency Matrix created"
         # for e in adj_list:
         #     adj_mat[e[0], e[1]] = 1
@@ -140,7 +140,6 @@ class VoG:
                 else:
                     # append the subgraph to GCCs queue
                     gcc_queue.append(sub_graph)
-                    print "gcc_queue appended, current gcc_queue size:", len(gcc_queue)
                 # add the nodes in the non-GCC to the back of gamma
                 self.gamma = np.append(self.gamma, sub_graph.nodes())
 
@@ -157,7 +156,6 @@ class VoG:
             self.collect_results(mdl_encoding(sub_graph, self.total_num_nodes))
 
     def collect_results(self, result):
-        print "collecting results!", result.__class__.__name__
         # TODO: handle race conditions here!!!
         if len(self.top_k_structures) < self.top_k:
             print "Adding", result.__class__.__name__
@@ -186,9 +184,6 @@ def mdl_encoding(sub_graph, total_num_nodes):
         err.benefit = 0
         structure_types.append(err)
         optimal_structure = min(structure_types, key=lambda k: k.mdl_cost)
-        print "WE ARE ENCODING HERE!!!"
-        print sub_graph.edges()
-        print structure_types[2].mdl_cost, err.mdl_cost
         return optimal_structure
     # except:
         # Put all exception text into an exception and raise that
