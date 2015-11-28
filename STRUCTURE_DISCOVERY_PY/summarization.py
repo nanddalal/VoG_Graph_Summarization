@@ -2,6 +2,7 @@ import sys
 import traceback
 import csv
 import math
+import heapq
 import numpy as np
 import networkx as nx
 import multiprocessing as mp
@@ -25,9 +26,9 @@ class VoG:
         # self.perform_slash_burn(1, int(math.log(self.total_num_nodes)))
         self.perform_slash_burn(1)
 
-        self.top_k_structures = sorted(self.top_k_structures, key=lambda k: k.benefit, reverse=True)
+        self.top_k_structures.sort()
         for s in self.top_k_structures:
-            print s.__class__.__name__, s.graph.nodes()
+            print s[1].__class__.__name__, s[1].graph.nodes()
 
         self.visualize_graph()
         plt.show()
@@ -49,7 +50,7 @@ class VoG:
             adj_list = np.array(list(r), int)
 
         adj_mat = np.zeros((adj_list.max(), adj_list.max()))
-        adj_list -= 1  # TODO: fix this!!!
+        adj_list -= 1
         for e in adj_list:
             adj_mat[e[0], e[1]] = 1
             adj_mat[e[1], e[0]] = 1
@@ -121,37 +122,42 @@ class VoG:
 
     def process_subgraph(self, sub_graph):
         if self.parallel:
-            self.workers.apply_async(mdl_encoding,
-                                     args=(sub_graph, self.total_num_nodes),
+            self.workers.apply_async(self.mdl_encoding,
+                                     args=sub_graph,
                                      callback=self.collect_results)
         else:
-            self.collect_results(mdl_encoding(sub_graph, self.total_num_nodes))
+            self.collect_results(self.mdl_encoding(sub_graph))
+
+    def mdl_encoding(self, sub_graph):
+        # try:
+            err = structures.Error(sub_graph, self.total_num_nodes)
+            err.compute_mdl_cost()
+            structure_types = [
+                structures.Chain(sub_graph, self.total_num_nodes),
+                structures.Clique(sub_graph, self.total_num_nodes),
+                structures.Star(sub_graph, self.total_num_nodes),
+                structures.BipartiteCore(sub_graph, self.total_num_nodes),
+            ]
+            for st in structure_types:
+                st.compute_mdl_cost()
+                st.benefit = err.mdl_cost - st.mdl_cost
+            err.benefit = 0
+            structure_types.append(err)
+            optimal_structure = min(structure_types, key=lambda k: k.mdl_cost)
+            return optimal_structure
+        # except:
+            # Put all exception text into an exception and raise that
+            # raise Exception("".join(traceback.format_exception(*sys.exc_info())))
 
     def collect_results(self, result):
         # TODO: handle race conditions here!!!
-        self.top_k_structures.append(result)
-
-
-def mdl_encoding(sub_graph, total_num_nodes):
-    # try:
-        err = structures.Error(sub_graph, total_num_nodes)
-        err.compute_mdl_cost()
-        structure_types = [
-            structures.Chain(sub_graph, total_num_nodes),
-            structures.Clique(sub_graph, total_num_nodes),
-            structures.Star(sub_graph, total_num_nodes),
-            structures.BipartiteCore(sub_graph, total_num_nodes),
-        ]
-        for st in structure_types:
-            st.compute_mdl_cost()
-            st.benefit = err.mdl_cost - st.mdl_cost
-        err.benefit = 0
-        structure_types.append(err)
-        optimal_structure = min(structure_types, key=lambda k: k.mdl_cost)
-        return optimal_structure
-    # except:
-        # Put all exception text into an exception and raise that
-        # raise Exception("".join(traceback.format_exception(*sys.exc_info())))
+        # Perform online update of top_k_structures
+        if len(self.top_k_structures) < 10:  # TODO: hardcoded k
+            heapq.heappush(self.top_k_structures, (result.benefit, result))
+        else:
+            # list is of size k, so find the smallest benefit, and if it is less than result, pop it, and push result
+            if self.top_k_structures[0][0] < result.benefit:
+                heapq.heappushpop(self.top_k_structures, (result.benefit, result))
 
 
 if __name__ == '__main__':
