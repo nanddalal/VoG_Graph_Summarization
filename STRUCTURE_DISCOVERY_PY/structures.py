@@ -37,6 +37,7 @@ def l2cnk(n, k):
         nbits -= log(i, 2)
     return nbits
 
+
 class Chain:
     def __init__(self, graph, total_num_nodes):
         self.graph = graph
@@ -80,7 +81,8 @@ class Chain:
 
         while queue:
             # print "Current queue[0]:", queue[0]
-            neighbors = np.array(np.nonzero(Asmall[queue[0], :])[1])[0, :] # get neighbors as numpy array
+            print np.array(np.nonzero(Asmall[queue[0], :])[1])
+            neighbors = np.array(np.nonzero(Asmall[queue[0], :])[1])  # get neighbors as numpy array
             # print "neighbors size:", np.size(neighbors)
             for i in range(0, np.size(neighbors)):
                 if node_list[neighbors[i]] == -1:
@@ -102,6 +104,7 @@ class Chain:
             extra_nodes_search[start] = 0
 
         return furthest_node, chain
+
 
 class Clique:
     def __init__(self, graph, total_num_nodes):
@@ -239,3 +242,4 @@ if __name__ == "__main__":
     G.add_path([9, 0])
     chain = Chain(G, 40)
     chain.compute_mdl_cost()
+

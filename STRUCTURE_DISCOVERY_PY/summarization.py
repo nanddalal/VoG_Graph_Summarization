@@ -1,6 +1,7 @@
 import sys
-import csv
 import traceback
+import csv
+import math
 import numpy as np
 import networkx as nx
 import multiprocessing as mp
@@ -21,6 +22,7 @@ class VoG:
         if parallel:
             self.workers = mp.Pool(processes=(mp.cpu_count() * 2))
 
+        # self.perform_slash_burn(1, int(math.log(self.total_num_nodes)))
         self.perform_slash_burn(1)
 
         self.top_k_structures = sorted(self.top_k_structures, key=lambda k: k.benefit, reverse=True)
@@ -157,3 +159,4 @@ if __name__ == '__main__':
     # vog = VoG('./test_bipartite_core.txt')
     # vog = VoG('./test_cliqueStarBC.txt')
     vog = VoG('./test_cliqueStarBCChain.txt')
+
