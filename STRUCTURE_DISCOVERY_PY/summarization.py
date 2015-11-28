@@ -17,7 +17,7 @@ import structures
 
 class VoGTimeout(Exception):
     @staticmethod
-    def time_limit_handler(self, signum, frame):
+    def time_limit_handler(signum, frame):
         print "Reached specified time limit"
         raise VoGTimeout
 
@@ -34,7 +34,9 @@ class VoG:
         self.parallel = parallel
         if parallel:
             self.workers = mp.Pool(processes=(mp.cpu_count() * 2))
+
         signal.signal(signal.SIGALRM, VoGTimeout.time_limit_handler)
+        signal.signal(signal.SIGINT, VoGTimeout.time_limit_handler)
         signal.alarm(time_limit)
 
         try:
