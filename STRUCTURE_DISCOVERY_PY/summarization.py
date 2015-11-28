@@ -192,7 +192,7 @@ def mdl_encoding(sub_graph, total_num_nodes):
         structure_types.append(err)
         optimal_structure = min(structure_types, key=lambda k: k.mdl_cost)
         print "WE ARE ENCODING HERE!!!"
-        print subg_graph.edges()
+        print sub_graph.edges()
         print structure_types[2].mdl_cost, err.mdl_cost
         return optimal_structure
     # except:
