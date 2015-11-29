@@ -8,7 +8,6 @@ import math
 import heapq
 import numpy as np
 from scipy.sparse import csr_matrix
-# from scipy import *
 import networkx as nx
 import multiprocessing as mp
 # import matplotlib.pyplot as plt
@@ -25,7 +24,7 @@ class VoGTimeout(Exception):
 
 
 class VoG:
-    def __init__(self, input_file, slash_burn_k=1, top_k=10, time_limit=10, parallel=False):
+    def __init__(self, input_file, slash_burn_k=1, top_k=10, time_limit=None, parallel=False):
         self.top_k = top_k
         self.top_k_structures = []
 
@@ -37,8 +36,9 @@ class VoG:
         if parallel:
             self.workers = mp.Pool(processes=(mp.cpu_count() * 2))
 
-        signal.signal(signal.SIGALRM, VoGTimeout.time_limit_handler)
-        signal.alarm(time_limit)
+        if time_limit is not None:
+            signal.signal(signal.SIGALRM, VoGTimeout.time_limit_handler)
+            signal.alarm(time_limit)
 
         try:
             print "Performing slash burn"
@@ -69,7 +69,7 @@ class VoG:
     # TODO: this assumes a 1 indexed adjacency list
     def parse_adj_list_file(self, input_file):
         with open(input_file) as gf:
-            r = csv.reader(gf, delimiter='\t')
+            r = csv.reader(gf, delimiter=',')
             adj_list = np.array(list(r), int)
 
         # adj_mat = np.zeros((adj_list.max(), adj_list.max()))
@@ -189,9 +189,5 @@ def mdl_encoding(sub_graph, total_num_nodes):
         # raise Exception("".join(traceback.format_exception(*sys.exc_info())))
 
 if __name__ == '__main__':
-    # vog = VoG('../DATA/cliqueStarClique.out')
-    # vog = VoG('./test_bipartite_core.txt')
-    # vog = VoG('./test_cliqueStarBC.txt')
-    # vog = VoG('./test_cliqueStarBCChain.txt', parallel=True)
-    vog = VoG('./soc-Epinions1.txt', parallel=True)
+    vog = VoG('../DATA/soc-Epinions1.txt', time_limit=120, parallel=True)
 
