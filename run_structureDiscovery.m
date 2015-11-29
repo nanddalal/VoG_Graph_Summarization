@@ -1,5 +1,4 @@
  input_file = 'DATA/cliqueStarClique.out';
-%  input_file = 'STRUCTURE_DISCOVERY_PY/test_bipartite_core.txt';
  unweighted_graph = input_file;
  output_model_greedy = 'DATA';
  output_model_top10 = 'DATA';

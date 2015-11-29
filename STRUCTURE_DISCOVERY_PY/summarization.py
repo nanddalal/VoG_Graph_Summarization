@@ -8,7 +8,7 @@ import math
 import heapq
 import numpy as np
 from scipy.sparse import csr_matrix
-from scipy import *
+# from scipy import *
 import networkx as nx
 import multiprocessing as mp
 # import matplotlib.pyplot as plt
@@ -38,8 +38,7 @@ class VoG:
             self.workers = mp.Pool(processes=(mp.cpu_count() * 2))
 
         signal.signal(signal.SIGALRM, VoGTimeout.time_limit_handler)
-        signal.signal(signal.SIGINT, VoGTimeout.time_limit_handler)
-        # signal.alarm(time_limit)
+        signal.alarm(time_limit)
 
         try:
             print "Performing slash burn"
