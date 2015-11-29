@@ -42,7 +42,8 @@ class VoG:
 
         try:
             print "Performing slash burn"
-            self.perform_slash_burn(slash_burn_k, int(math.log(self.total_num_nodes)))
+            # self.perform_slash_burn(slash_burn_k, int(math.log(self.total_num_nodes)))
+            self.perform_slash_burn(slash_burn_k, 100)
         except VoGTimeout:
             pass  # TODO: probably need to be doing something here
         else:
