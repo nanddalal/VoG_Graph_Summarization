@@ -8,6 +8,19 @@ import matplotlib.pyplot as plt
 from operator import itemgetter
 
 import structures
+import cProfile
+
+def profiler(func):
+    def profiled_func(*args, **kwargs):
+        profile = cProfile.Profile()
+        try:
+            profile.enable()
+            result = func(*args, **kwargs)
+            profile.disable()
+            return result
+        finally:
+            profile.print_stats()
+    return profiled_func
 
 
 class VoG:
@@ -15,7 +28,7 @@ class VoG:
         self.top_k_structures = []
 
         self.parse_adj_list_file(input_file)
-        self.visualize_graph()
+        # self.visualize_graph()
 
         self.parallel = parallel
         if parallel:
@@ -27,7 +40,7 @@ class VoG:
         for s in self.top_k_structures:
             print s.__class__.__name__, s.graph.nodes()
 
-        self.visualize_graph()
+        # self.visualize_graph()
         plt.show()
         plt.close()
 
@@ -56,6 +69,8 @@ class VoG:
         self.total_num_nodes = self.G.number_of_nodes()
         self.total_num_edges = self.G.number_of_edges()
 
+
+    @profiler
     def perform_slash_burn(self, k, gcc_num_nodes_criterion=7):
         """ Peforms SlashBurn algorithm for subgraph generation
         
