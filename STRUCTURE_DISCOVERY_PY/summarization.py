@@ -36,18 +36,19 @@ class VoG:
         if parallel:
             self.workers = mp.Pool(processes=(mp.cpu_count() * 2))
 
-        if time_limit is not None:
-            signal.signal(signal.SIGALRM, VoGTimeout.time_limit_handler)
-            signal.alarm(time_limit)
+        # if time_limit is not None:
+        #     signal.signal(signal.SIGALRM, VoGTimeout.time_limit_handler)
+        #     signal.alarm(time_limit)
 
         try:
             print "Performing slash burn"
             # self.perform_slash_burn(slash_burn_k, int(math.log(self.total_num_nodes)))
-            self.perform_slash_burn(slash_burn_k, 100)
+            self.perform_slash_burn(slash_burn_k, 7)
         except VoGTimeout:
             pass  # TODO: probably need to be doing something here
         else:
-            signal.alarm(0)  # TODO: understand why this is necessary (it may not be)
+            # signal.alarm(0)  # TODO: understand why this is necessary (it may not be)
+            pass
 
         print "Printing top k structures"
         self.print_top_k_structures()
@@ -74,7 +75,7 @@ class VoG:
             adj_list = np.array(list(r), int)
 
         # adj_mat = np.zeros((adj_list.max(), adj_list.max()))
-        # adj_list -= 1
+        adj_list -= 1
         row, col, data = [], [], []
         for e in adj_list:
             row.append(e[0])
@@ -173,10 +174,10 @@ def mdl_encoding(sub_graph, total_num_nodes):
         err = structures.Error(sub_graph, total_num_nodes)
         err.compute_mdl_cost()
         structure_types = [
-            structures.Chain(sub_graph, total_num_nodes),
+            # structures.Chain(sub_graph, total_num_nodes),
             structures.Clique(sub_graph, total_num_nodes),
-            structures.Star(sub_graph, total_num_nodes),
-            structures.BipartiteCore(sub_graph, total_num_nodes),
+            # structures.Star(sub_graph, total_num_nodes),
+            # structures.BipartiteCore(sub_graph, total_num_nodes),
         ]
         for st in structure_types:
             st.compute_mdl_cost()
@@ -190,5 +191,5 @@ def mdl_encoding(sub_graph, total_num_nodes):
         # raise Exception("".join(traceback.format_exception(*sys.exc_info())))
 
 if __name__ == '__main__':
-    vog = VoG('../DATA/soc-Epinions1.txt', time_limit=120, parallel=True)
+    vog = VoG('./test_cliqueStarBCChain.txt', time_limit=120, parallel=False)
 
