@@ -20,6 +20,7 @@ import cProfile
 
 lock = threading.Lock()
 
+
 def profiler(func):
     def profiled_func(*args, **kwargs):
         profile = cProfile.Profile()
@@ -54,8 +55,8 @@ class VoG:
             self.workers = mp.Pool(processes=(mp.cpu_count() * 2))
 
         if time_limit is not None:
-             signal.signal(signal.SIGALRM, VoGTimeout.time_limit_handler)
-             signal.alarm(time_limit)
+            signal.signal(signal.SIGALRM, VoGTimeout.time_limit_handler)
+            signal.alarm(time_limit)
 
         try:
             print "Performing slash burn"
@@ -91,7 +92,7 @@ class VoG:
             adj_list = np.array(list(r), int)
 
         # adj_mat = np.zeros((adj_list.max(), adj_list.max()))
-   	# adj_list -= 1 
+        # adj_list -= 1
         row, col, data = [], [], []
         for e in adj_list:
             row.append(e[0])
@@ -109,7 +110,6 @@ class VoG:
         print "NetworkX Graph created"
         self.total_num_nodes = self.G.number_of_nodes()
         self.total_num_edges = self.G.number_of_edges()
-
 
     @profiler
     def perform_slash_burn(self, k, gcc_num_nodes_criterion=7):
@@ -176,7 +176,7 @@ class VoG:
 
     def collect_results(self, result):
         # TODO: handle race conditions here!!!
-	lock.acquire()
+        lock.acquire()
         if len(self.top_k_structures) < self.top_k:
             print "Adding", result.__class__.__name__
             heapq.heappush(self.top_k_structures, (result.benefit, result))
@@ -186,7 +186,8 @@ class VoG:
                 print "Adding", result.__class__.__name__, \
                     "and removing", self.top_k_structures[0][1].__class__.__name__
                 heapq.heappushpop(self.top_k_structures, (result.benefit, result))
-	lock.release()
+        lock.release()
+
 
 def mdl_encoding(sub_graph, total_num_nodes):
     # try:
