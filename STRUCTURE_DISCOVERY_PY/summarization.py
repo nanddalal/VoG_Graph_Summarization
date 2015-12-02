@@ -111,7 +111,7 @@ class VoG:
         self.total_num_nodes = self.G.number_of_nodes()
         self.total_num_edges = self.G.number_of_edges()
 
-    @profiler
+    # @profiler
     def perform_slash_burn(self, k, gcc_num_nodes_criterion=7):
         """ Peforms SlashBurn algorithm for subgraph generation
         
@@ -147,7 +147,7 @@ class VoG:
             # 2
             # get all the subgraphs after removing the k hubset
             sorted_sub_graphs = [(sub_graph, sub_graph.number_of_nodes())
-                                 for sub_graph in nx.connected_component_subgraphs(current_gcc)]
+                                 for sub_graph in nx.connected_component_subgraphs(current_gcc, copy=False)]
             # TODO: making a copy - shouldn't make a copy
             # sort the subgraphs by the number of nodes in decreasing order
             sorted_sub_graphs = sorted(sorted_sub_graphs, key=itemgetter(1), reverse=True)
@@ -181,7 +181,6 @@ class VoG:
             print "Adding", result.__class__.__name__
             heapq.heappush(self.top_k_structures, (result.benefit, result))
         else:
-            print result.__class__.__name__, result.benefit, self.top_k_structures[0][0]
             if self.top_k_structures[0][0] < result.benefit:
                 print "Adding", result.__class__.__name__, \
                     "and removing", self.top_k_structures[0][1].__class__.__name__
@@ -211,5 +210,5 @@ def mdl_encoding(sub_graph, total_num_nodes):
         # raise Exception("".join(traceback.format_exception(*sys.exc_info())))
 
 if __name__ == '__main__':
-    vog = VoG('./soc-Epinions1.txt', time_limit=600, parallel=True)
+    vog = VoG('../DATA/soc-Epinions1.txt', time_limit=120, parallel=True)
 
