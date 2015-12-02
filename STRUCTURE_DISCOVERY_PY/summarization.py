@@ -175,17 +175,19 @@ class VoG:
             self.collect_results(mdl_encoding(sub_graph, self.total_num_nodes))
 
     def collect_results(self, result):
-        # TODO: handle race conditions here!!!
-        lock.acquire()
-        if len(self.top_k_structures) < self.top_k:
-            print "Adding", result.__class__.__name__
-            heapq.heappush(self.top_k_structures, (result.benefit, result))
-        else:
-            if self.top_k_structures[0][0] < result.benefit:
-                print "Adding", result.__class__.__name__, \
-                    "and removing", self.top_k_structures[0][1].__class__.__name__
-                heapq.heappushpop(self.top_k_structures, (result.benefit, result))
-        lock.release()
+        # TODO: handle race conditions/deadlock here!!!
+        try:
+            lock.acquire()
+            if len(self.top_k_structures) < self.top_k:
+                print "Adding", result.__class__.__name__
+                heapq.heappush(self.top_k_structures, (result.benefit, result))
+            else:
+                if self.top_k_structures[0][0] < result.benefit:
+                    print "Adding", result.__class__.__name__, \
+                        "and removing", self.top_k_structures[0][1].__class__.__name__
+                    heapq.heappushpop(self.top_k_structures, (result.benefit, result))
+        finally:
+            lock.release()
 
 
 def mdl_encoding(sub_graph, total_num_nodes):
@@ -210,5 +212,5 @@ def mdl_encoding(sub_graph, total_num_nodes):
         # raise Exception("".join(traceback.format_exception(*sys.exc_info())))
 
 if __name__ == '__main__':
-    vog = VoG('../DATA/soc-Epinions1.txt', time_limit=120, parallel=True)
+    vog = VoG('../DATA/soc-Epinions1.txt', time_limit=None, parallel=True)
 
