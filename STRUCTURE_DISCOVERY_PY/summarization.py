@@ -1,12 +1,7 @@
 #!/usr/bin/env python
-import threading
-import os
-import time
+
 import signal
-import sys
-import traceback
 import csv
-import math
 import heapq
 import numpy as np
 from scipy.sparse import csr_matrix
@@ -16,22 +11,7 @@ import multiprocessing as mp
 from operator import itemgetter
 
 import structures
-import cProfile
-
-lock = threading.Lock()
-
-
-def profiler(func):
-    def profiled_func(*args, **kwargs):
-        profile = cProfile.Profile()
-        try:
-            profile.enable()
-            result = func(*args, **kwargs)
-            profile.disable()
-            return result
-        finally:
-            profile.print_stats()
-    return profiled_func
+from profiling import profiler
 
 
 class VoGTimeout(Exception):
@@ -39,6 +19,12 @@ class VoGTimeout(Exception):
     def time_limit_handler(signum, frame):
         print "Reached specified time limit"
         raise VoGTimeout
+
+
+# TODO: probably should move these into VoG
+top_k_structures_lock = mp.Lock()
+sub_graph_queue_lock = mp.Lock()
+sub_graph_queue_cv = mp.Condition(sub_graph_queue_lock)
 
 
 class VoG:
@@ -65,7 +51,7 @@ class VoG:
         except VoGTimeout:
             pass  # TODO: probably need to be doing something here
         else:
-            signal.alarm(0)  # TODO: understand why this is necessary (it may not be)
+            signal.alarm(0)  # TODO: understand why this is necessary
 
         print "Printing top k structures"
         self.print_top_k_structures()
@@ -148,15 +134,11 @@ class VoG:
             print "Finding remaining subgraphs after having removed k hubset"
             # 2
             # get all the subgraphs after removing the k hubset
-            sorted_sub_graphs = [(sub_graph, sub_graph.number_of_nodes())
-                                 for sub_graph in nx.connected_component_subgraphs(current_gcc, copy=False)]
-            # TODO: making a copy - shouldn't make a copy
-            # sort the subgraphs by the number of nodes in decreasing order
-            sorted_sub_graphs = sorted(sorted_sub_graphs, key=itemgetter(1), reverse=True)
+            sub_graphs = nx.connected_component_subgraphs(current_gcc, copy=False)
 
             print "Iterating over remaining subgraphs and spinning off labeling if less than certain size"
             # iterate over the remaining subgraphs we are "burning"
-            for sub_graph, num_nodes in sorted_sub_graphs:
+            for sub_graph in sub_graphs:
                 if sub_graph.number_of_nodes() <= gcc_num_nodes_criterion:
                     self.process_subgraph(sub_graph)
                 else:
@@ -178,9 +160,9 @@ class VoG:
             self.collect_results(mdl_encoding(sub_graph, self.total_num_nodes))
 
     def collect_results(self, result):
-        # TODO: handle race conditions/deadlock here!!!
+        # TODO: use CV's here to avoid busy waiting
         try:
-            lock.acquire()
+            top_k_structures_lock.acquire()
             if len(self.top_k_structures) < self.top_k:
                 print "Adding", result.__class__.__name__
                 heapq.heappush(self.top_k_structures, (result.benefit, result))
@@ -190,30 +172,30 @@ class VoG:
                         "and removing", self.top_k_structures[0][1].__class__.__name__
                     heapq.heappushpop(self.top_k_structures, (result.benefit, result))
         finally:
-            lock.release()
+            top_k_structures_lock.release()
+
+
+def connected_components(sub_graph):
+    return 5
 
 
 def mdl_encoding(sub_graph, total_num_nodes):
-    # try:
-        err = structures.Error(sub_graph, total_num_nodes)
-        err.compute_mdl_cost()
-        structure_types = [
-            structures.Chain(sub_graph, total_num_nodes),
-            structures.Clique(sub_graph, total_num_nodes),
-            structures.Star(sub_graph, total_num_nodes),
-            structures.BipartiteCore(sub_graph, total_num_nodes),
-        ]
-        for st in structure_types:
-            st.compute_mdl_cost()
-            st.benefit = err.mdl_cost - st.mdl_cost
-        err.benefit = 0
-        structure_types.append(err)
-        optimal_structure = min(structure_types, key=lambda k: k.mdl_cost)
-        return optimal_structure
-    # except:
-        # Put all exception text into an exception and raise that
-        # raise Exception("".join(traceback.format_exception(*sys.exc_info())))
+    err = structures.Error(sub_graph, total_num_nodes)
+    err.compute_mdl_cost()
+    structure_types = [
+        structures.Chain(sub_graph, total_num_nodes),
+        structures.Clique(sub_graph, total_num_nodes),
+        structures.Star(sub_graph, total_num_nodes),
+        structures.BipartiteCore(sub_graph, total_num_nodes),
+    ]
+    for st in structure_types:
+        st.compute_mdl_cost()
+        st.benefit = err.mdl_cost - st.mdl_cost
+    err.benefit = 0
+    structure_types.append(err)
+    optimal_structure = min(structure_types, key=lambda k: k.mdl_cost)
+    return optimal_structure
 
 if __name__ == '__main__':
-    vog = VoG('../DATA/soc-Epinions1.txt', time_limit=None, parallel=False)
+    vog = VoG('../DATA/soc-Epinions1.txt', time_limit=120, parallel=False)
 
