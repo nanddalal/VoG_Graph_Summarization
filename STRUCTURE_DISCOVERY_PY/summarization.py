@@ -24,6 +24,7 @@ class VoGTimeout(Exception):
 
 top_k = 10
 top_k_structures = []
+top_k_structures_lock = mp.Lock()
 gcc_queue_lock = mp.Lock()
 gcc_queue_cv = mp.Condition(gcc_queue_lock)
 
@@ -39,14 +40,13 @@ class VoG:
             self.manager = mp.Manager()
             self.top_k_queue = self.manager.Queue()
             self.workers = mp.Pool(processes=(mp.cpu_count() * 2))
-            self.workers.apply_async(update_top_k)
 
         if time_limit is not None:
             signal.signal(signal.SIGALRM, VoGTimeout.time_limit_handler)
             signal.alarm(time_limit)
 
         try:
-            print "Performing slash burn"
+            print "Performing slash burn using top k heuristic"
             # self.perform_slash_burn(slash_burn_k, int(math.log(self.total_num_nodes)))
             self.perform_slash_burn(hubset_k, 1000)
         except VoGTimeout:
@@ -107,12 +107,13 @@ class VoG:
             k: number of hubsets to remove at each iteration
             gcc_num_nodes_criterion: the inclusive upper-bound criterion for a subgraph to be a GCC which will be burned
         """
-        sys.stdout.flush()
+
+        top_k_handler = mp.Process(target=update_top_k, args=(self.top_k_queue,))
+        top_k_handler.start()
+
         self.gcc_queue = [self.G]
 
-        i = 0
         while True:
-            i += 1
             gcc_queue_lock.acquire()
             while len(self.gcc_queue) <= 0:
                 gcc_queue_cv.wait()
@@ -122,7 +123,11 @@ class VoG:
 
             if self.parallel:
                 self.workers.apply_async(slash_and_burn,
-                                         args=(current_gcc, hubset_k, gcc_num_nodes_criterion, self.total_num_nodes, self.top_k_queue),
+                                         args=(current_gcc,
+                                               hubset_k,
+                                               gcc_num_nodes_criterion,
+                                               self.total_num_nodes,
+                                               self.top_k_queue),
                                          callback=self.collect_slashburned_gccs)
             else:
                 self.collect_slashburned_gccs(
@@ -131,6 +136,7 @@ class VoG:
         if self.parallel:
             self.workers.close()
             self.workers.join()
+            top_k_handler.terminate()
 
     def collect_slashburned_gccs(self, gccs):
         try:
@@ -141,11 +147,27 @@ class VoG:
             gcc_queue_lock.release()
 
 
+def update_top_k(top_k_queue):
+    while True:
+        structure = top_k_queue.get()
+        try:
+            top_k_structures_lock.acquire()
+            if len(top_k_structures) < top_k:
+                print "Adding", structure.__class__.__name__
+                heapq.heappush(top_k_structures, (structure.benefit, structure))
+            else:
+                if top_k_structures[0][0] < structure.benefit:
+                    print "Adding", structure.__class__.__name__, \
+                        "and removing", top_k_structures[0][1].__class__.__name__
+                    heapq.heappushpop(top_k_structures, (structure.benefit, structure))
+        finally:
+            top_k_structures_lock.release()
+
+
 def slash_and_burn(current_gcc, hubset_k, gcc_num_nodes_criterion, total_num_nodes, top_k_queue):
     gccs = []
 
     print "Finding k hubset", current_gcc.number_of_nodes(), current_gcc.number_of_edges()
-    sys.stdout.flush()
     # 1
     # get a sorted list of (node, degree) in decreasing order
     k_hubset_nd = sorted(current_gcc.degree_iter(), key=itemgetter(1), reverse=True)
@@ -156,44 +178,28 @@ def slash_and_burn(current_gcc, hubset_k, gcc_num_nodes_criterion, total_num_nod
     for node in k_hubset:
         hubset_subgraph = current_gcc.neighbors(node)
         hubset_subgraph.append(node)
-        top_k_queue.put(mdl_encoding(current_gcc.subgraph(hubset_subgraph), total_num_nodes))
+        structure = mdl_encoding(current_gcc.subgraph(hubset_subgraph), total_num_nodes)
+        top_k_queue.put(structure)
 
     # remove the k hubset from G, so now we have G' (slash!)
     current_gcc.remove_nodes_from(k_hubset)
 
     print "Finding remaining subgraphs after having removed k hubset"
-    sys.stdout.flush()
     # 2
     # get all the subgraphs after removing the k hubset
     sub_graphs = nx.connected_component_subgraphs(current_gcc, copy=False)
 
     print "Iterating over remaining subgraphs and spinning off labeling if less than certain size"
-    sys.stdout.flush()
     # iterate over the remaining subgraphs we are "burning"
     for sub_graph in sub_graphs:
         if sub_graph.number_of_nodes() <= gcc_num_nodes_criterion:
-            top_k_queue.put(mdl_encoding(sub_graph, total_num_nodes))
+            structure = mdl_encoding(sub_graph, total_num_nodes)
+            top_k_queue.put(structure)
         else:
             # append the subgraph to GCCs queue
             gccs.append(sub_graph)
 
     return gccs
-
-
-def update_top_k(top_k_queue):
-    while True:
-        structure = top_k_queue.get()
-        try:
-            if len(top_k_structures) < top_k:
-                print "Adding", structure.__class__.__name__
-                heapq.heappush(top_k_structures, (structure.benefit, structure))
-            else:
-                if top_k_structures[0][0] < structure.benefit:
-                    print "Adding", structure.__class__.__name__, \
-                        "and removing", top_k_structures[0][1].__class__.__name__
-                    heapq.heappushpop(top_k_structures, (structure.benefit, structure))
-        finally:
-            pass
 
 
 def mdl_encoding(sub_graph, total_num_nodes):
