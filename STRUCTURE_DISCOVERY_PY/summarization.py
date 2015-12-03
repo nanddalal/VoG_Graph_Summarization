@@ -22,15 +22,20 @@ class VoGTimeout(Exception):
         raise VoGTimeout
 
 
-top_k = 10
-top_k_structures = []
-top_k_structures_lock = mp.Lock()
+class TopKStop:
+    def __init__(self):
+        pass
+
+
 gcc_queue_lock = mp.Lock()
 gcc_queue_cv = mp.Condition(gcc_queue_lock)
 
 
 class VoG:
-    def __init__(self, input_file, hubset_k=1, time_limit=None, parallel=True):
+    def __init__(self, input_file, hubset_k=1, top_k=10, time_limit=None, parallel=True):
+        self.top_k = top_k
+        self.top_k_structures = []
+
         print "Parsing adjacency list"
         self.parse_adj_list_file(input_file)
         # self.visualize_graph()
@@ -55,7 +60,7 @@ class VoG:
             signal.alarm(0)  # TODO: understand why this is necessary
 
         print "Printing top k structures"
-        VoG.print_top_k_structures()
+        self.print_top_k_structures()
         # self.visualize_graph()
         # plt.show()
         # plt.close()
@@ -67,10 +72,9 @@ class VoG:
         nx.draw_networkx_edges(self.G, pos)
         nx.draw_networkx_labels(self.G, pos)
 
-    @staticmethod
-    def print_top_k_structures():
-        top_k_structures.sort(reverse=True)
-        for s in top_k_structures:
+    def print_top_k_structures(self):
+        self.top_k_structures.sort(reverse=True)
+        for s in self.top_k_structures:
             print s[1].__class__.__name__, s[1].graph.nodes()
 
     # TODO: this assumes a 1 indexed adjacency list
@@ -108,7 +112,9 @@ class VoG:
             gcc_num_nodes_criterion: the inclusive upper-bound criterion for a subgraph to be a GCC which will be burned
         """
 
-        top_k_handler = mp.Process(target=update_top_k, args=(self.top_k_queue,))
+        top_k_handler = mp.Process(target=update_top_k,
+                                   args=(self.top_k_queue, self.top_k),
+                                   callback=self.collect_top_k_structures)
         top_k_handler.start()
 
         self.gcc_queue = [self.G]
@@ -136,7 +142,14 @@ class VoG:
         if self.parallel:
             self.workers.close()
             self.workers.join()
-            top_k_handler.terminate()
+            self.top_k_queue.put(TopKStop())
+            try:
+                top_k_handler.terminate()
+            except EOFError as eof:
+                print eof
+
+    def collect_top_k_structures(self, top_k_structs):
+        self.top_k_structures = top_k_structs
 
     def collect_slashburned_gccs(self, gccs):
         try:
@@ -147,21 +160,21 @@ class VoG:
             gcc_queue_lock.release()
 
 
-def update_top_k(top_k_queue):
+def update_top_k(top_k_queue, top_k):
+    top_k_structs = []
     while True:
         structure = top_k_queue.get()
-        try:
-            top_k_structures_lock.acquire()
-            if len(top_k_structures) < top_k:
-                print "Adding", structure.__class__.__name__
-                heapq.heappush(top_k_structures, (structure.benefit, structure))
-            else:
-                if top_k_structures[0][0] < structure.benefit:
-                    print "Adding", structure.__class__.__name__, \
-                        "and removing", top_k_structures[0][1].__class__.__name__
-                    heapq.heappushpop(top_k_structures, (structure.benefit, structure))
-        finally:
-            top_k_structures_lock.release()
+        if structure.__class__ == TopKStop:
+            break
+        if len(top_k_structs) < top_k:
+            print "Adding", structure.__class__.__name__
+            heapq.heappush(top_k_structs, (structure.benefit, structure))
+        else:
+            if top_k_structs[0][0] < structure.benefit:
+                print "Adding", structure.__class__.__name__, \
+                    "and removing", top_k_structs[0][1].__class__.__name__
+                heapq.heappushpop(top_k_structs, (structure.benefit, structure))
+    return top_k_structs
 
 
 def slash_and_burn(current_gcc, hubset_k, gcc_num_nodes_criterion, total_num_nodes, top_k_queue):
