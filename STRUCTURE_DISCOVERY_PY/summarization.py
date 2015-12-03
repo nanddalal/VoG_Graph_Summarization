@@ -61,7 +61,7 @@ class VoG:
         try:
             print "Performing slash burn"
             # self.perform_slash_burn(slash_burn_k, int(math.log(self.total_num_nodes)))
-            self.perform_slash_burn(slash_burn_k, 7)
+            self.perform_slash_burn(slash_burn_k, 1000)
         except VoGTimeout:
             pass  # TODO: probably need to be doing something here
         else:
@@ -127,6 +127,7 @@ class VoG:
             current_gcc = gcc_queue[0]
             del gcc_queue[0]
 
+            print "Finding k hubset", current_gcc.number_of_nodes(), current_gcc.number_of_edges()
             # 1
             # get a sorted list of (node, degree) in decreasing order
             k_hubset_nd = sorted(current_gcc.degree_iter(), key=itemgetter(1), reverse=True)
@@ -144,6 +145,7 @@ class VoG:
             # add removed k hubset to the front of gamma
             self.gamma = np.insert(self.gamma, 0, k_hubset)
 
+            print "Finding remaining subgraphs after having removed k hubset"
             # 2
             # get all the subgraphs after removing the k hubset
             sorted_sub_graphs = [(sub_graph, sub_graph.number_of_nodes())
@@ -152,6 +154,7 @@ class VoG:
             # sort the subgraphs by the number of nodes in decreasing order
             sorted_sub_graphs = sorted(sorted_sub_graphs, key=itemgetter(1), reverse=True)
 
+            print "Iterating over remaining subgraphs and spinning off labeling if less than certain size"
             # iterate over the remaining subgraphs we are "burning"
             for sub_graph, num_nodes in sorted_sub_graphs:
                 if sub_graph.number_of_nodes() <= gcc_num_nodes_criterion:
@@ -212,5 +215,5 @@ def mdl_encoding(sub_graph, total_num_nodes):
         # raise Exception("".join(traceback.format_exception(*sys.exc_info())))
 
 if __name__ == '__main__':
-    vog = VoG('../DATA/soc-Epinions1.txt', time_limit=None, parallel=True)
+    vog = VoG('../DATA/soc-Epinions1.txt', time_limit=None, parallel=False)
 
