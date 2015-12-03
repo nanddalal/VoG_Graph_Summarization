@@ -22,11 +22,6 @@ class VoGTimeout(Exception):
         raise VoGTimeout
 
 
-class TopKStop:
-    def __init__(self):
-        pass
-
-
 gcc_queue_lock = mp.Lock()
 gcc_queue_cv = mp.Condition(gcc_queue_lock)
 
@@ -44,6 +39,7 @@ class VoG:
         if parallel:
             self.manager = mp.Manager()
             self.top_k_queue = self.manager.Queue()
+            self.top_k_structures_queue = self.manager.Queue()
             self.workers = mp.Pool(processes=(mp.cpu_count() * 2))
 
         if time_limit is not None:
@@ -113,8 +109,7 @@ class VoG:
         """
 
         top_k_handler = mp.Process(target=update_top_k,
-                                   args=(self.top_k_queue, self.top_k),
-                                   callback=self.collect_top_k_structures)
+                                   args=(self.top_k_queue, self.top_k, self.top_k_structures_queue))
         top_k_handler.start()
 
         self.gcc_queue = [self.G]
@@ -142,14 +137,11 @@ class VoG:
         if self.parallel:
             self.workers.close()
             self.workers.join()
-            self.top_k_queue.put(TopKStop())
-            try:
-                top_k_handler.terminate()
-            except EOFError as eof:
-                print eof
+            self.top_k_queue.put(None)
+            top_k_handler.join()
 
-    def collect_top_k_structures(self, top_k_structs):
-        self.top_k_structures = top_k_structs
+        while not self.top_k_structures_queue.empty():
+            self.top_k_structures.append(self.top_k_structures_queue.get())
 
     def collect_slashburned_gccs(self, gccs):
         try:
@@ -160,11 +152,15 @@ class VoG:
             gcc_queue_lock.release()
 
 
-def update_top_k(top_k_queue, top_k):
+def update_top_k(top_k_queue, top_k, top_k_structures_queue):
     top_k_structs = []
     while True:
-        structure = top_k_queue.get()
-        if structure.__class__ == TopKStop:
+        try:
+            structure = top_k_queue.get()
+        except EOFError as eof:
+            print eof
+            break
+        if structure is None:
             break
         if len(top_k_structs) < top_k:
             print "Adding", structure.__class__.__name__
@@ -174,7 +170,8 @@ def update_top_k(top_k_queue, top_k):
                 print "Adding", structure.__class__.__name__, \
                     "and removing", top_k_structs[0][1].__class__.__name__
                 heapq.heappushpop(top_k_structs, (structure.benefit, structure))
-    return top_k_structs
+    for s in top_k_structs:
+        top_k_structures_queue.put(s)
 
 
 def slash_and_burn(current_gcc, hubset_k, gcc_num_nodes_criterion, total_num_nodes, top_k_queue):
