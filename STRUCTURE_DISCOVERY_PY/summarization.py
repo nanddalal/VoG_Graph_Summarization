@@ -50,7 +50,9 @@ class VoG:
             # self.perform_slash_burn(slash_burn_k, int(math.log(self.total_num_nodes)))
             self.perform_slash_burn(hubset_k, 1000)
         except VoGTimeout:
-            pass  # TODO: probably need to be doing something here
+            self.top_k_queue.put(None)
+            self.workers.close()
+            self.workers.join()
         else:
             signal.alarm(0)  # TODO: understand why this is necessary
 
@@ -107,9 +109,6 @@ class VoG:
             gcc_num_nodes_criterion: the inclusive upper-bound criterion for a subgraph to be a GCC which will be burned
         """
 
-        # top_k_handler = mp.Process(target=update_top_k,
-        #                            args=(self.top_k_queue, self.top_k, self.top_k_structures_queue))
-        # top_k_handler.start()
         self.workers.apply_async(update_top_k,
                                  args=(self.top_k_queue, self.top_k),
                                  callback=self.collect_top_k_structures)
@@ -137,9 +136,9 @@ class VoG:
                     slash_and_burn(current_gcc, hubset_k, gcc_num_nodes_criterion, self.total_num_nodes))
 
         if self.parallel:
+            self.top_k_queue.put(None)
             self.workers.close()
             self.workers.join()
-            self.top_k_queue.put(None)
 
     def collect_top_k_structures(self, top_k_structs):
         self.top_k_structures = top_k_structs
@@ -171,6 +170,11 @@ def update_top_k(top_k_queue, top_k):
                 print "Adding", structure.__class__.__name__, \
                     "and removing", top_k_structs[0][1].__class__.__name__
                 heapq.heappushpop(top_k_structs, (structure.benefit, structure))
+
+    top_k_structs.sort(reverse=True)
+    for s in top_k_structs:
+        print s[1].__class__.__name__, s[1].graph.nodes()
+
     return top_k_structs
 
 
@@ -236,5 +240,5 @@ def debug_print(debug):
 
 
 if __name__ == '__main__':
-    vog = VoG('../DATA/soc-Epinions1.txt', time_limit=60, parallel=True)
+    vog = VoG('../DATA/soc-Epinions1.txt', time_limit=15, parallel=True)
 
