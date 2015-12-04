@@ -39,7 +39,6 @@ class VoG:
         if parallel:
             self.manager = mp.Manager()
             self.top_k_queue = self.manager.Queue()
-            self.top_k_structures_queue = self.manager.Queue()
             self.workers = mp.Pool(processes=(mp.cpu_count() * 2))
 
         if time_limit is not None:
@@ -108,9 +107,12 @@ class VoG:
             gcc_num_nodes_criterion: the inclusive upper-bound criterion for a subgraph to be a GCC which will be burned
         """
 
-        top_k_handler = mp.Process(target=update_top_k,
-                                   args=(self.top_k_queue, self.top_k, self.top_k_structures_queue))
-        top_k_handler.start()
+        # top_k_handler = mp.Process(target=update_top_k,
+        #                            args=(self.top_k_queue, self.top_k, self.top_k_structures_queue))
+        # top_k_handler.start()
+        self.workers.apply_async(update_top_k,
+                                 args=(self.top_k_queue, self.top_k),
+                                 callback=self.collect_top_k_structures)
 
         self.gcc_queue = [self.G]
 
@@ -138,10 +140,9 @@ class VoG:
             self.workers.close()
             self.workers.join()
             self.top_k_queue.put(None)
-            top_k_handler.join()
 
-        while not self.top_k_structures_queue.empty():
-            self.top_k_structures.append(self.top_k_structures_queue.get())
+    def collect_top_k_structures(self, top_k_structs):
+        self.top_k_structures = top_k_structs
 
     def collect_slashburned_gccs(self, gccs):
         try:
@@ -152,7 +153,7 @@ class VoG:
             gcc_queue_lock.release()
 
 
-def update_top_k(top_k_queue, top_k, top_k_structures_queue):
+def update_top_k(top_k_queue, top_k):
     top_k_structs = []
     while True:
         try:
@@ -170,8 +171,7 @@ def update_top_k(top_k_queue, top_k, top_k_structures_queue):
                 print "Adding", structure.__class__.__name__, \
                     "and removing", top_k_structs[0][1].__class__.__name__
                 heapq.heappushpop(top_k_structs, (structure.benefit, structure))
-    for s in top_k_structs:
-        top_k_structures_queue.put(s)
+    return top_k_structs
 
 
 def slash_and_burn(current_gcc, hubset_k, gcc_num_nodes_criterion, total_num_nodes, top_k_queue):
