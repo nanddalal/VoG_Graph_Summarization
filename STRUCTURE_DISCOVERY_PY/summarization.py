@@ -20,7 +20,7 @@ class VoGTimeout(Exception):
 
 
 class VoG:
-    def __init__(self, input_file, hubset_k=1, top_k=10, time_limit=None):
+    def __init__(self, input_file, hubset_k=4, top_k=10, time_limit=None):
         self.top_k = top_k
         self.top_k_structures = []
 
@@ -42,7 +42,7 @@ class VoG:
         try:
             print "Performing slash burn using top k heuristic"
             # self.perform_slash_burn(slash_burn_k, int(math.log(self.total_num_nodes)))
-            self.perform_slash_burn(hubset_k, 4)
+            self.perform_slash_burn(hubset_k, 1000)
         except VoGTimeout:
             pass  # TODO: probably should be doing something here
         else:
@@ -77,13 +77,13 @@ class VoG:
             print s[1].__class__.__name__, s[1].graph.nodes()
 
     # TODO: this assumes a 1 indexed adjacency list
+    # should only have to change the delimiter and whether to minus-equal one
     def parse_adj_list_file(self, input_file):
         with open(input_file) as gf:
-            r = csv.reader(gf, delimiter='\t')
+            r = csv.reader(gf, delimiter=',')
             adj_list = np.array(list(r), int)
 
-        # adj_mat = np.zeros((adj_list.max(), adj_list.max()))
-        # adj_list -= 1
+        adj_list -= 1
         row, col, data = [], [], []
         for e in adj_list:
             row.append(e[0])
@@ -92,13 +92,10 @@ class VoG:
 
         adj_mat = csr_matrix((data, (row, col)), shape=(adj_list.max() + 1, adj_list.max() + 1), dtype=np.int8)
         print "Adjacency Matrix created"
-        # for e in adj_list:
-        #     adj_mat[e[0], e[1]] = 1
-        #     adj_mat[e[1], e[0]] = 1
 
-        # self.G = nx.from_numpy_matrix(adj_mat)
         self.G = nx.from_scipy_sparse_matrix(adj_mat)
         print "NetworkX Graph created"
+
         self.total_num_nodes = self.G.number_of_nodes()
         self.total_num_edges = self.G.number_of_edges()
 
@@ -232,5 +229,5 @@ def debug_print(debug):
 
 
 if __name__ == '__main__':
-    vog = VoG('../DATA/soc-Epinions1.txt', time_limit=30)
+    vog = VoG('../DATA/flickr/flickr.graph', time_limit=None)
 
