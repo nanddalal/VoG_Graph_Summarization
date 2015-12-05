@@ -39,9 +39,6 @@ class VoG:
         self.top_k_queue = self.manager.JoinableQueue()
         self.workers = mp.Pool(processes=None)
 
-        top_k_handler = mp.Process(target=update_top_k, args=(self.top_k_queue, self.top_k))
-        top_k_handler.start()
-
         try:
             print "Performing slash burn using top k heuristic"
             # self.perform_slash_burn(slash_burn_k, int(math.log(self.total_num_nodes)))
@@ -51,10 +48,11 @@ class VoG:
         else:
             signal.alarm(0)  # TODO: understand why this is necessary
 
-        print "Shutting down the mananger - now the workers should not be able to put anything onto the queue anymore"
+        print "Shutting down the mananger"
         self.manager.shutdown()
 
         print "Terminating workers"
+        # self.workers.close()
         self.workers.terminate()
         print "Joining workers"
         self.workers.join()
@@ -128,6 +126,10 @@ class VoG:
             gcc_num_nodes_criterion: the inclusive upper-bound criterion for a subgraph to be a GCC which will be burned
         """
 
+        self.workers.apply_async(update_top_k,
+                                 args=(self.top_k_queue, self.top_k),
+                                 callback=self.collect_top_k_structures)
+
         self.gcc_queue = [self.G]
 
         while True:  # TODO: come up with stopping criterion other than time
@@ -147,6 +149,9 @@ class VoG:
             self.gcc_queue = []
 
             self.gcc_queue_lock.release()
+
+    def collect_top_k_structures(self, top_k_structs):
+        self.top_k_structures = top_k_structs
 
     def collect_slashburned_gccs(self, gccs):
         self.gcc_queue_lock.acquire()
@@ -174,6 +179,7 @@ def update_top_k(top_k_queue, top_k):
                 print "Adding", structure.__class__.__name__, \
                     "and removing", top_k_structs[0][1].__class__.__name__
                 heapq.heappushpop(top_k_structs, (structure.benefit, structure))
+    return top_k_structs
 
 
 def slash_and_burn(current_gcc, hubset_k, gcc_num_nodes_criterion, total_num_nodes, top_k_queue):
@@ -194,7 +200,7 @@ def slash_and_burn(current_gcc, hubset_k, gcc_num_nodes_criterion, total_num_nod
         try:
             top_k_queue.put(structure)
         except EOFError as eof:
-            print eof, "the manager was shut down so we cannot put anything on the queue anymore"
+            print eof
 
     # remove the k hubset from G, so now we have G' (slash!)
     current_gcc.remove_nodes_from(k_hubset)
@@ -212,7 +218,7 @@ def slash_and_burn(current_gcc, hubset_k, gcc_num_nodes_criterion, total_num_nod
             try:
                 top_k_queue.put(structure)
             except EOFError as eof:
-                print eof, "the manager was shut down so we cannot put anything on the queue anymore"
+                print eof
         else:
             # append the subgraph to GCCs queue
             gccs.append(sub_graph)
@@ -245,5 +251,5 @@ def debug_print(debug):
 
 
 if __name__ == '__main__':
-    vog = VoG('../DATA/soc-Epinions1.txt', time_limit=30)
+    vog = VoG('../DATA/soc-Epinions1.txt', time_limit=120)
 
