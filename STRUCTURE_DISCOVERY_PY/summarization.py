@@ -20,7 +20,7 @@ class VoGTimeout(Exception):
 
 
 class VoG:
-    def __init__(self, input_file, hubset_k=4, top_k=10, time_limit=None):
+    def __init__(self, input_file, hubset_k=1, gcc_num_nodes_criterion=7, top_k=10, time_limit=None):
         self.top_k = top_k
         self.top_k_structures = []
 
@@ -42,7 +42,7 @@ class VoG:
         try:
             print "Performing slash burn using top k heuristic"
             # self.perform_slash_burn(slash_burn_k, int(math.log(self.total_num_nodes)))
-            self.perform_slash_burn(hubset_k, 1000)
+            self.perform_slash_burn(hubset_k, gcc_num_nodes_criterion)
         except VoGTimeout:
             pass  # TODO: probably should be doing something here
         else:
@@ -209,10 +209,10 @@ def mdl_encoding(sub_graph, total_num_nodes):
     err = structures.Error(sub_graph, total_num_nodes)
     err.compute_mdl_cost()
     structure_types = [
-        structures.Chain(sub_graph, total_num_nodes),
         structures.Clique(sub_graph, total_num_nodes),
         structures.Star(sub_graph, total_num_nodes),
         structures.BipartiteCore(sub_graph, total_num_nodes),
+        structures.Chain(sub_graph, total_num_nodes),
     ]
     for st in structure_types:
         st.compute_mdl_cost()
@@ -229,5 +229,5 @@ def debug_print(debug):
 
 
 if __name__ == '__main__':
-    vog = VoG('../DATA/flickr/flickr.graph', time_limit=None)
+    vog = VoG('./test_cliqueStarBCChain.txt', hubset_k=1, gcc_num_nodes_criterion=5, top_k=10, time_limit=10)
 
