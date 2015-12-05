@@ -1,7 +1,7 @@
-from operator import itemgetter
 from math import log
 import numpy as np
 import networkx as nx
+from operator import itemgetter
 
 
 def ln(n):
@@ -47,8 +47,10 @@ class Chain:
         if nx.number_of_nodes(self.graph) < 3:
             self.mdl_cost = np.inf  # set the mdl_cost as Chain to be maximum so it won't be chosen
             return
+        # Asmall = nx.to_scipy_sparse_matrix(self.graph)
         Asmall = nx.to_numpy_matrix(self.graph)
         deg = np.sum(Asmall, axis=0)
+        # deg = Asmall.sum(axis=0)
         min_deg_ind = np.argmin(deg)
         p_init, empty_chain = self.bfs(Asmall, min_deg_ind, path=False)
         p_fin, chain = self.bfs(Asmall, p_init, path=True)
@@ -111,12 +113,16 @@ class Clique:
         self.total_num_nodes = total_num_nodes
 
     def compute_mdl_cost(self):
-        Asmall = nx.to_numpy_matrix(self.graph)
-        E = (len(Asmall)**2 - len(Asmall) - np.count_nonzero(Asmall), np.count_nonzero(Asmall))
+        Asmall = nx.to_scipy_sparse_matrix(self.graph)
+        # count_nonzero = len(Asmall.nonzero()[0])
+        count_nonzero = np.count_nonzero(Asmall)
+        # E = (len(Asmall)**2 - len(Asmall) - np.count_nonzero(Asmall), np.count_nonzero(Asmall))
+        len_Asmall = Asmall.shape[0]
+        E = (len_Asmall ** 2 - len_Asmall - count_nonzero, count_nonzero)
         if E[0] == 0 or E[1] == 0:  # no excluded edges
-            mdl_cost = ln(len(Asmall)) + l2cnk(self.total_num_nodes, len(Asmall))
+            mdl_cost = ln(len_Asmall) + l2cnk(self.total_num_nodes, len_Asmall)
         else:
-            mdl_cost = ln(len(Asmall)) + l2cnk(self.total_num_nodes, len(Asmall)) + lnu_opt(E[0], E[1])
+            mdl_cost = ln(len_Asmall) + l2cnk(self.total_num_nodes, len_Asmall) + lnu_opt(E[0], E[1])
 
         self.mdl_cost = mdl_cost
 
