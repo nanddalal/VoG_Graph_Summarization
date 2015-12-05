@@ -16,45 +16,44 @@ from profiling import profiler
 
 
 class VoGTimeout(Exception):
-    @staticmethod
-    def time_limit_handler(signum, frame):
-        print "Reached specified time limit"
-        raise VoGTimeout
-
-
-gcc_queue_lock = mp.Lock()
-gcc_queue_cv = mp.Condition(gcc_queue_lock)
+    pass
 
 
 class VoG:
-    def __init__(self, input_file, hubset_k=1, top_k=10, time_limit=None, parallel=True):
+    def __init__(self, input_file, hubset_k=1, top_k=10, time_limit=None):
         self.top_k = top_k
         self.top_k_structures = []
+
+        self.gcc_queue_lock = mp.Lock()
+        self.gcc_queue_cv = mp.Condition(self.gcc_queue_lock)
 
         print "Parsing adjacency list"
         self.parse_adj_list_file(input_file)
         # self.visualize_graph()
 
-        self.parallel = parallel
-        if parallel:
-            self.manager = mp.Manager()
-            self.top_k_queue = self.manager.Queue()
-            self.workers = mp.Pool(processes=(mp.cpu_count() * 2))
+        self.manager = mp.Manager()
+        self.top_k_queue = self.manager.Queue()
+        self.workers = mp.Pool(processes=None)
 
         if time_limit is not None:
-            signal.signal(signal.SIGALRM, VoGTimeout.time_limit_handler)
+            signal.signal(signal.SIGALRM, VoG.time_limit_handler)
             signal.alarm(time_limit)
 
         try:
             print "Performing slash burn using top k heuristic"
             # self.perform_slash_burn(slash_burn_k, int(math.log(self.total_num_nodes)))
-            self.perform_slash_burn(hubset_k, 1000)
+            self.perform_slash_burn(hubset_k, 7)
         except VoGTimeout:
-            self.top_k_queue.put(None)
-            self.workers.close()
-            self.workers.join()
+            pass  # TODO: probably should be doing something here
         else:
             signal.alarm(0)  # TODO: understand why this is necessary
+
+        self.top_k_queue.put(None)
+        print "About to close and join the workers"
+        # self.workers.close()
+        self.workers.terminate()
+        # self.top_k_queue.close()
+        self.workers.join()
 
         print "Printing top k structures"
         self.print_top_k_structures()
@@ -68,6 +67,11 @@ class VoG:
         nx.draw_networkx_nodes(self.G, pos)
         nx.draw_networkx_edges(self.G, pos)
         nx.draw_networkx_labels(self.G, pos)
+
+    @staticmethod
+    def time_limit_handler(signum, frame):
+        print "Reached specified time limit"
+        raise VoGTimeout
 
     def print_top_k_structures(self):
         self.top_k_structures.sort(reverse=True)
@@ -116,40 +120,31 @@ class VoG:
         self.gcc_queue = [self.G]
 
         while True:
-            gcc_queue_lock.acquire()
-            while len(self.gcc_queue) <= 0:
-                gcc_queue_cv.wait()
-            current_gcc = self.gcc_queue[0]
-            del self.gcc_queue[0]
-            gcc_queue_lock.release()
+            self.gcc_queue_lock.acquire()
 
-            if self.parallel:
+            while len(self.gcc_queue) <= 0:
+                self.gcc_queue_cv.wait()
+
+            for gcc in self.gcc_queue:
                 self.workers.apply_async(slash_and_burn,
-                                         args=(current_gcc,
+                                         args=(gcc,
                                                hubset_k,
                                                gcc_num_nodes_criterion,
                                                self.total_num_nodes,
                                                self.top_k_queue),
                                          callback=self.collect_slashburned_gccs)
-            else:
-                self.collect_slashburned_gccs(
-                    slash_and_burn(current_gcc, hubset_k, gcc_num_nodes_criterion, self.total_num_nodes))
+            self.gcc_queue = []
 
-        if self.parallel:
-            self.top_k_queue.put(None)
-            self.workers.close()
-            self.workers.join()
+            self.gcc_queue_lock.release()
 
     def collect_top_k_structures(self, top_k_structs):
         self.top_k_structures = top_k_structs
 
     def collect_slashburned_gccs(self, gccs):
-        try:
-            gcc_queue_lock.acquire()
-            self.gcc_queue += gccs
-            gcc_queue_cv.notify()
-        finally:
-            gcc_queue_lock.release()
+        self.gcc_queue_lock.acquire()
+        self.gcc_queue += gccs
+        self.gcc_queue_cv.notify()
+        self.gcc_queue_lock.release()
 
 
 def update_top_k(top_k_queue, top_k):
@@ -171,9 +166,9 @@ def update_top_k(top_k_queue, top_k):
                     "and removing", top_k_structs[0][1].__class__.__name__
                 heapq.heappushpop(top_k_structs, (structure.benefit, structure))
 
-    top_k_structs.sort(reverse=True)
-    for s in top_k_structs:
-        print s[1].__class__.__name__, s[1].graph.nodes()
+    # top_k_structs.sort(reverse=True)
+    # for s in top_k_structs:
+    #     print s[1].__class__.__name__, s[1].graph.nodes()
 
     return top_k_structs
 
@@ -213,6 +208,7 @@ def slash_and_burn(current_gcc, hubset_k, gcc_num_nodes_criterion, total_num_nod
             # append the subgraph to GCCs queue
             gccs.append(sub_graph)
 
+    print "Produced the following number of gccs to iterate on", len(gccs)
     return gccs
 
 
@@ -240,5 +236,5 @@ def debug_print(debug):
 
 
 if __name__ == '__main__':
-    vog = VoG('../DATA/soc-Epinions1.txt', time_limit=15, parallel=True)
+    vog = VoG('../DATA/soc-Epinions1.txt', time_limit=120)
 
