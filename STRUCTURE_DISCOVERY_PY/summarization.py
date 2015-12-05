@@ -48,25 +48,10 @@ class VoG:
         else:
             signal.alarm(0)  # TODO: understand why this is necessary
 
-        print "Shutting down the mananger"
+        print "Shutting down manager and terminating/joining the workers"
         self.manager.shutdown()
-
-        print "Terminating workers"
-        # self.workers.close()
         self.workers.terminate()
-        print "Joining workers"
         self.workers.join()
-
-        # print "Emptying top k queue but since joinable queue, calling join"
-        # while not self.top_k_queue.empty():
-        #     self.top_k_queue.get()
-
-        # print "Feeding poison pill - now the top k should be on the top of the queue"
-        # self.top_k_queue.put(None)
-        # self.top_k_structures = self.top_k_queue.get()
-
-        # print "Joining the top k handler"
-        # top_k_handler.join()
 
         print "Printing top k structures"
         self.print_top_k_structures()
@@ -137,7 +122,8 @@ class VoG:
 
             while len(self.gcc_queue) <= 0:
                 self.gcc_queue_cv.wait()
-            print "Acquired gcc queue lock and about to start processes, ", len(self.gcc_queue)
+
+            print "Spinning off slash burns for", len(self.gcc_queue), "gccs"
             for gcc in self.gcc_queue:
                 self.workers.apply_async(slash_and_burn,
                                          args=(gcc,
@@ -161,15 +147,11 @@ class VoG:
 
 
 def update_top_k(top_k_queue, top_k):
-    print "Launched update top k process"
     top_k_structs = []
     while True:
         try:
             structure = top_k_queue.get()
         except EOFError as eof:
-            print eof
-            break
-        if structure is None:
             break
         if len(top_k_structs) < top_k:
             print "Adding", structure.__class__.__name__
@@ -200,7 +182,7 @@ def slash_and_burn(current_gcc, hubset_k, gcc_num_nodes_criterion, total_num_nod
         try:
             top_k_queue.put(structure)
         except EOFError as eof:
-            print eof
+            pass
 
     # remove the k hubset from G, so now we have G' (slash!)
     current_gcc.remove_nodes_from(k_hubset)
@@ -218,12 +200,11 @@ def slash_and_burn(current_gcc, hubset_k, gcc_num_nodes_criterion, total_num_nod
             try:
                 top_k_queue.put(structure)
             except EOFError as eof:
-                print eof
+                pass
         else:
             # append the subgraph to GCCs queue
             gccs.append(sub_graph)
 
-    print "Produced the following number of gccs to iterate on", len(gccs)
     return gccs
 
 
@@ -251,5 +232,5 @@ def debug_print(debug):
 
 
 if __name__ == '__main__':
-    vog = VoG('../DATA/soc-Epinions1.txt', time_limit=120)
+    vog = VoG('../DATA/soc-Epinions1.txt', time_limit=30)
 
