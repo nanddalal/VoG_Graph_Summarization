@@ -31,29 +31,44 @@ class VoG:
         self.parse_adj_list_file(input_file)
         # self.visualize_graph()
 
-        self.manager = mp.Manager()
-        self.top_k_queue = self.manager.Queue()
-        self.workers = mp.Pool(processes=None)
-
         if time_limit is not None:
             signal.signal(signal.SIGALRM, VoG.time_limit_handler)
             signal.alarm(time_limit)
 
+        self.manager = mp.Manager()
+        self.top_k_queue = self.manager.JoinableQueue()
+        self.workers = mp.Pool(processes=None)
+
+        top_k_handler = mp.Process(target=update_top_k, args=(self.top_k_queue, self.top_k))
+        top_k_handler.start()
+
         try:
             print "Performing slash burn using top k heuristic"
             # self.perform_slash_burn(slash_burn_k, int(math.log(self.total_num_nodes)))
-            self.perform_slash_burn(hubset_k, 7)
+            self.perform_slash_burn(hubset_k, 4)
         except VoGTimeout:
             pass  # TODO: probably should be doing something here
         else:
             signal.alarm(0)  # TODO: understand why this is necessary
 
-        self.top_k_queue.put(None)
-        print "About to close and join the workers"
-        # self.workers.close()
+        print "Shutting down the mananger - now the workers should not be able to put anything onto the queue anymore"
+        self.manager.shutdown()
+
+        print "Terminating workers"
         self.workers.terminate()
-        # self.top_k_queue.close()
+        print "Joining workers"
         self.workers.join()
+
+        # print "Emptying top k queue but since joinable queue, calling join"
+        # while not self.top_k_queue.empty():
+        #     self.top_k_queue.get()
+
+        # print "Feeding poison pill - now the top k should be on the top of the queue"
+        # self.top_k_queue.put(None)
+        # self.top_k_structures = self.top_k_queue.get()
+
+        # print "Joining the top k handler"
+        # top_k_handler.join()
 
         print "Printing top k structures"
         self.print_top_k_structures()
@@ -113,18 +128,14 @@ class VoG:
             gcc_num_nodes_criterion: the inclusive upper-bound criterion for a subgraph to be a GCC which will be burned
         """
 
-        self.workers.apply_async(update_top_k,
-                                 args=(self.top_k_queue, self.top_k),
-                                 callback=self.collect_top_k_structures)
-
         self.gcc_queue = [self.G]
 
-        while True:
+        while True:  # TODO: come up with stopping criterion other than time
             self.gcc_queue_lock.acquire()
 
             while len(self.gcc_queue) <= 0:
                 self.gcc_queue_cv.wait()
-
+            print "Acquired gcc queue lock and about to start processes, ", len(self.gcc_queue)
             for gcc in self.gcc_queue:
                 self.workers.apply_async(slash_and_burn,
                                          args=(gcc,
@@ -137,9 +148,6 @@ class VoG:
 
             self.gcc_queue_lock.release()
 
-    def collect_top_k_structures(self, top_k_structs):
-        self.top_k_structures = top_k_structs
-
     def collect_slashburned_gccs(self, gccs):
         self.gcc_queue_lock.acquire()
         self.gcc_queue += gccs
@@ -148,6 +156,7 @@ class VoG:
 
 
 def update_top_k(top_k_queue, top_k):
+    print "Launched update top k process"
     top_k_structs = []
     while True:
         try:
@@ -166,12 +175,6 @@ def update_top_k(top_k_queue, top_k):
                     "and removing", top_k_structs[0][1].__class__.__name__
                 heapq.heappushpop(top_k_structs, (structure.benefit, structure))
 
-    # top_k_structs.sort(reverse=True)
-    # for s in top_k_structs:
-    #     print s[1].__class__.__name__, s[1].graph.nodes()
-
-    return top_k_structs
-
 
 def slash_and_burn(current_gcc, hubset_k, gcc_num_nodes_criterion, total_num_nodes, top_k_queue):
     gccs = []
@@ -188,7 +191,10 @@ def slash_and_burn(current_gcc, hubset_k, gcc_num_nodes_criterion, total_num_nod
         hubset_subgraph = current_gcc.neighbors(node)
         hubset_subgraph.append(node)
         structure = mdl_encoding(current_gcc.subgraph(hubset_subgraph), total_num_nodes)
-        top_k_queue.put(structure)
+        try:
+            top_k_queue.put(structure)
+        except EOFError as eof:
+            print eof, "the manager was shut down so we cannot put anything on the queue anymore"
 
     # remove the k hubset from G, so now we have G' (slash!)
     current_gcc.remove_nodes_from(k_hubset)
@@ -203,7 +209,10 @@ def slash_and_burn(current_gcc, hubset_k, gcc_num_nodes_criterion, total_num_nod
     for sub_graph in sub_graphs:
         if sub_graph.number_of_nodes() <= gcc_num_nodes_criterion:
             structure = mdl_encoding(sub_graph, total_num_nodes)
-            top_k_queue.put(structure)
+            try:
+                top_k_queue.put(structure)
+            except EOFError as eof:
+                print eof, "the manager was shut down so we cannot put anything on the queue anymore"
         else:
             # append the subgraph to GCCs queue
             gccs.append(sub_graph)
@@ -236,5 +245,5 @@ def debug_print(debug):
 
 
 if __name__ == '__main__':
-    vog = VoG('../DATA/soc-Epinions1.txt', time_limit=120)
+    vog = VoG('../DATA/soc-Epinions1.txt', time_limit=30)
 
