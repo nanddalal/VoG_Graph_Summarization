@@ -223,10 +223,75 @@ class BipartiteCore:
         self.mdl_cost = mdl_cost
 
 
-class Error:
+class NearBipartiteCore:
     def __init__(self, graph, total_num_nodes):
         self.graph = graph
         self.total_num_nodes = total_num_nodes
+
+    def compute_mdl_cost(self):
+        Asmall = nx.to_numpy_matrix(self.graph)
+        h = -0.01
+        positive = 0.01
+        negative = -0.01
+        a = 4 * (h**2) / (1 - 4 * (h**2))
+        c = 2 * h / (1 - 4 * (h**2))
+        n = len(Asmall)
+        if n < 3:
+            self.mdl_cost = np.inf
+            return
+        deg = np.array(Asmall.sum(axis=0)).flatten()
+        D = np.diag(deg)
+        matI = np.eye(n)
+        phi = np.zeros(n)
+        idx = np.argmax(deg)
+        neighbors = np.array(Asmall[idx]).flatten().nonzero()
+        phi[idx] = positive
+        phi[neighbors] = negative
+        b = np.dot(np.linalg.inv(matI + a * D - c * Asmall), phi)
+        b = np.array(b).flatten()
+
+        set1 = np.array(b > 0)
+        set2 = np.array(b < 0)
+        Einc = np.count_nonzero(Asmall[set1][:, set1]) + np.count_nonzero(Asmall[set2][:, set2])
+        Eexc = len(Asmall)**2 - Einc
+        # M = np.zeros((n, n))
+        # M[set1][:, set2] = 1
+        # M[set2][:, set1] = 1
+        # E = np.logical_xor(M, Asmall)
+
+        N_tot = self.total_num_nodes
+        n_sub = set1.sum()
+        E = [Einc, Eexc]
+        n_sub2 = set2.sum()
+
+        k = n_sub
+        l = n_sub2
+
+        edges_inc = np.count_nonzero(Asmall[set1][:, set2])
+        edges_exc = set1.sum()*set2.sum()-np.count_nonzero(Asmall[set1][:, set2])
+
+        if edges_inc == 0 or edges_exc == 0:
+            mdl_cost = ln(k) \
+                       + ln(l) \
+                       + l2cnk(N_tot, k) \
+                       + l2cnk(N_tot - k, l) \
+                       + lnu_opt(E[0], E[1])
+        else:
+            mdl_cost = ln(k) \
+                       + ln(l) \
+                       + l2cnk(N_tot, k) \
+                       + l2cnk(N_tot - k, l) \
+                       + np.log2((n_sub+n_sub2)**2) \
+                       + edges_inc * nll(edges_inc, edges_exc, 1) \
+                       + edges_exc * nll(edges_inc, edges_exc, 0) \
+                       + lnu_opt(E[0], E[1])
+
+        self.mdl_cost = mdl_cost
+
+
+class Error:
+    def __init__(self, graph):
+        self.graph = graph
 
     def compute_mdl_cost(self):
         Asmall = nx.to_numpy_matrix(self.graph)

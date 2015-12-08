@@ -206,20 +206,25 @@ def slash_and_burn(current_gcc, hubset_k, gcc_num_nodes_criterion, total_num_nod
 
 
 def mdl_encoding(sub_graph, total_num_nodes):
-    err = structures.Error(sub_graph, total_num_nodes)
+    err = structures.Error(sub_graph)
     err.compute_mdl_cost()
     structure_types = [
         structures.Clique(sub_graph, total_num_nodes),
         structures.Star(sub_graph, total_num_nodes),
         structures.BipartiteCore(sub_graph, total_num_nodes),
+        structures.NearBipartiteCore(sub_graph, total_num_nodes),
         structures.Chain(sub_graph, total_num_nodes),
     ]
+    print sub_graph.nodes(), sub_graph.edges()
     for st in structure_types:
         st.compute_mdl_cost()
         st.benefit = err.mdl_cost - st.mdl_cost
+        print st.__class__.__name__, st.mdl_cost, st.benefit
     err.benefit = 0
+    print err.__class__.__name__, err.mdl_cost, err.benefit
     structure_types.append(err)
     optimal_structure = min(structure_types, key=lambda k: k.mdl_cost)
+    print "Picked", optimal_structure.__class__.__name__, optimal_structure.mdl_cost, optimal_structure.benefit
     return optimal_structure
 
 
@@ -229,5 +234,5 @@ def debug_print(debug):
 
 
 if __name__ == '__main__':
-    vog = VoG('./test_cliqueStarBCChain.txt', hubset_k=1, gcc_num_nodes_criterion=5, top_k=10, time_limit=10)
+    vog = VoG('./test_cliqueStarBCChain.txt', hubset_k=1, gcc_num_nodes_criterion=5, top_k=10, time_limit=15)
 
