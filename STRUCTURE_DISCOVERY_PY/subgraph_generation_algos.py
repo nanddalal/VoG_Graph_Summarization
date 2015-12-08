@@ -4,7 +4,7 @@ from operator import itemgetter
 from structures import mdl_encoding
 
 
-def modified_slash_burn(current_gcc, hubset_k, gcc_num_nodes_criterion, total_num_nodes, top_k_queue):
+def modified_slash_burn(current_gcc, hubset_k, gcc_num_nodes_criterion, total_num_nodes, top_k_queue, iteration):
     gccs = []
 
     print "Finding k hubset", current_gcc.number_of_nodes(), current_gcc.number_of_edges()
@@ -47,11 +47,10 @@ def modified_slash_burn(current_gcc, hubset_k, gcc_num_nodes_criterion, total_nu
             # append the subgraph to GCCs queue
             gccs.append(subgraph)
 
-    return gccs
+    return iteration, gccs
 
 
-# def egonet(current_gcc, total_num_nodes, top_k_queue, min_egonet_size, max_egonet_size):
-def k_hop_egonets(current_egonet, min_egonet_size, egonet_num_nodes_criterion, total_num_nodes, top_k_queue):
+def k_hop_egonets(current_egonet, min_egonet_size, egonet_num_nodes_criterion, total_num_nodes, top_k_queue, iteration):
     egonets = []
 
     # 1
@@ -64,19 +63,19 @@ def k_hop_egonets(current_egonet, min_egonet_size, egonet_num_nodes_criterion, t
         elif degree > min_egonet_size:
             neighbors = current_egonet.neighbors(node)
             neighbors.append(node)
-            egonet_subgraph = current_egonet.subgraph(neighbors)
+            subgraph = current_egonet.subgraph(neighbors)
             current_egonet.remove_nodes_from(neighbors)
-            if (degree + 1) > egonet_num_nodes_criterion:
-                egonets.append(egonet_subgraph)
-            else:
-                structure = mdl_encoding(egonet_subgraph, total_num_nodes)
+            if subgraph.number_of_nodes() <= egonet_num_nodes_criterion:
+                structure = mdl_encoding(subgraph, total_num_nodes)
                 try:
                     top_k_queue.put(structure)
                 except Exception as e:
                     print "Manager was shut down so shouldn't be adding subgraphs", e
                     break
+            else:
+                egonets.append(subgraph)
         else:
             break
 
-    return egonets
+    return iteration, egonets
 

@@ -22,8 +22,8 @@ class VoG:
     def __init__(self, input_file, delimiter, zero_indexed,
                  subgraph_generation_algo,
                  hubset_k=1, gcc_num_nodes_criterion=7,
-                 min_egonet_size=10, egonet_num_nodes_criterion=100,
-                 top_k=10, num_iterations=10):
+                 min_egonet_size=20, egonet_num_nodes_criterion=100,
+                 top_k=100, num_iterations=20):
 
         self.subgraph_generation_algo = subgraph_generation_algo
         self.num_iterations = num_iterations
@@ -31,8 +31,8 @@ class VoG:
         self.top_k = top_k
         self.top_k_structures = []
 
-        self.gcc_queue_lock = mp.Lock()
-        self.gcc_queue_cv = mp.Condition(self.gcc_queue_lock)
+        self.subgraph_queue_lock = mp.Lock()
+        self.subgraph_queue_cv = mp.Condition(self.subgraph_queue_lock)
 
         print "Parsing adjacency list"
         self.parse_adj_list_file(input_file, delimiter, zero_indexed)
@@ -42,7 +42,7 @@ class VoG:
         self.top_k_queue = self.manager.JoinableQueue()
         self.workers = mp.Pool(processes=None)
 
-        print "Performing slash burn using top k heuristic"
+        print "Performing subgraph generation and labeling using top k heuristic"
         self.perform_graph_summarization(hubset_k, gcc_num_nodes_criterion, min_egonet_size, egonet_num_nodes_criterion)
 
         print "Shutting down manager and terminating/joining the workers"
@@ -113,11 +113,18 @@ class VoG:
 
         self.subgraph_queue = [self.G]
 
-        for i in range(self.num_iterations):
-            self.gcc_queue_lock.acquire()
+        iteration = 0
+        self.num_finished = 0
+        self.num_to_finish = 1
+
+        while True:
+            self.subgraph_queue_lock.acquire()
 
             while len(self.subgraph_queue) <= 0:
-                self.gcc_queue_cv.wait()
+                self.subgraph_queue_cv.wait()
+
+            if self.num_finished >= self.num_to_finish:
+                break
 
             print "Spinning off subgraph generation for", len(self.subgraph_queue), "subgraphs"
             for subgraph in self.subgraph_queue:
@@ -127,7 +134,8 @@ class VoG:
                                                    hubset_k,
                                                    gcc_num_nodes_criterion,
                                                    self.total_num_nodes,
-                                                   self.top_k_queue),
+                                                   self.top_k_queue,
+                                                   iteration),
                                              callback=self.collect_resulting_subgraphs)
                 elif self.subgraph_generation_algo == 'k_hop_egonets':
                     self.workers.apply_async(k_hop_egonets,
@@ -135,21 +143,35 @@ class VoG:
                                                    min_egonet_size,
                                                    egonet_num_nodes_criterion,
                                                    self.total_num_nodes,
-                                                   self.top_k_queue),
+                                                   self.top_k_queue,
+                                                   iteration),
                                              callback=self.collect_resulting_subgraphs)
             self.subgraph_queue = []
 
-            self.gcc_queue_lock.release()
+            iteration += 1
+
+            self.subgraph_queue_lock.release()
+
+        print "We had to finish", self.num_to_finish, "and we finished", self.num_finished
 
     def collect_top_k_structures(self, top_k_structs):
         print "Called update top k's calback function"
         self.top_k_structures = top_k_structs
 
-    def collect_resulting_subgraphs(self, gccs):
-        self.gcc_queue_lock.acquire()
-        self.subgraph_queue += gccs
-        self.gcc_queue_cv.notify()
-        self.gcc_queue_lock.release()
+    def collect_resulting_subgraphs(self, iteration_subgraphs):
+        iteration = iteration_subgraphs[0]
+        subgraphs = iteration_subgraphs[1]
+
+        self.subgraph_queue_lock.acquire()
+
+        self.subgraph_queue += subgraphs
+        self.num_finished += 1
+        if iteration < self.num_iterations:
+            self.num_to_finish += len(subgraphs)
+
+        self.subgraph_queue_cv.notify()
+
+        self.subgraph_queue_lock.release()
 
 
 def update_top_k(top_k_queue, top_k):
@@ -172,5 +194,5 @@ def update_top_k(top_k_queue, top_k):
 
 
 if __name__ == '__main__':
-    vog = VoG('../DATA/soc-Epinions1.txt', delimiter='\t', zero_indexed=True, subgraph_generation_algo='k_hop_egonets')
+    vog = VoG('../DATA/flickr/flickr.graph', delimiter=',', zero_indexed=False, subgraph_generation_algo='k_hop_egonets')
 
