@@ -80,10 +80,10 @@ class VoG:
     # should only have to change the delimiter and whether to minus-equal one
     def parse_adj_list_file(self, input_file):
         with open(input_file) as gf:
-            r = csv.reader(gf, delimiter=',')
+            r = csv.reader(gf, delimiter='\t')
             adj_list = np.array(list(r), int)
 
-        adj_list -= 1
+        # adj_list -= 1
         row, col, data = [], [], []
         for e in adj_list:
             row.append(e[0])
@@ -112,8 +112,9 @@ class VoG:
                                  args=(self.top_k_queue, self.top_k),
                                  callback=self.collect_top_k_structures)
 
-        self.gcc_queue = [self.G]
 
+        self.gcc_queue = [self.G]
+        i = 0
         while True:  # TODO: come up with stopping criterion other than time
             self.gcc_queue_lock.acquire()
 
@@ -121,14 +122,24 @@ class VoG:
                 self.gcc_queue_cv.wait()
 
             print "Spinning off slash burns for", len(self.gcc_queue), "gccs"
+            max_size = 500
             for gcc in self.gcc_queue:
-                self.workers.apply_async(slash_and_burn,
+                # self.workers.apply_async(slash_and_burn,
+                #                          args=(gcc,
+                #                                hubset_k,
+                #                                gcc_num_nodes_criterion,
+                #                                self.total_num_nodes,
+                #                                self.top_k_queue),
+                #                          callback=self.collect_slashburned_gccs)
+                max_size -=1
+                self.workers.apply_async(egonet,
                                          args=(gcc,
-                                               hubset_k,
-                                               gcc_num_nodes_criterion,
                                                self.total_num_nodes,
-                                               self.top_k_queue),
+                                               self.top_k_queue,
+                                               10,
+                                               i),
                                          callback=self.collect_slashburned_gccs)
+                i += 1
             self.gcc_queue = []
 
             self.gcc_queue_lock.release()
@@ -205,6 +216,39 @@ def slash_and_burn(current_gcc, hubset_k, gcc_num_nodes_criterion, total_num_nod
     return gccs
 
 
+# def egonet(current_gcc, total_num_nodes, top_k_queue, min_egonet_size, max_egonet_size):
+def egonet(current_gcc, total_num_nodes, top_k_queue, min_egonet_size, iternum):
+    gccs = []
+    max_egonet_size = 105 - iternum
+    max_egonet_size = 100
+    # 1
+    # get a sorted list of (node, degree) in decreasing order
+    node_degrees = sorted(current_gcc.degree_iter(), key=itemgetter(1), reverse=True)
+    # get the node index for the k highest degree vertex
+    # k_hubset = [i[0] for i in k_hubset_nd[0:hubset_k]]
+
+    for node, degree in node_degrees:
+        if not nx.degree(current_gcc, [node]):
+            continue
+        elif degree > min_egonet_size:
+            neighbors = current_gcc.neighbors(node)
+            neighbors.append(node)
+            egonet_subgraph = current_gcc.subgraph(neighbors)
+            current_gcc.remove_nodes_from(neighbors)
+            if (degree +1) > max_egonet_size:
+                print "appending egonet of size", degree
+                gccs.append(egonet_subgraph)
+            else:
+                structure = mdl_encoding(egonet_subgraph, total_num_nodes)
+                try:
+                    top_k_queue.put(structure)
+                except Exception as e:
+                    print "Weird error: ", e
+                    pass
+        else:
+            break
+    return gccs
+
 def mdl_encoding(sub_graph, total_num_nodes):
     err = structures.Error(sub_graph)
     err.compute_mdl_cost()
@@ -212,7 +256,7 @@ def mdl_encoding(sub_graph, total_num_nodes):
         structures.Clique(sub_graph, total_num_nodes),
         structures.Star(sub_graph, total_num_nodes),
         structures.BipartiteCore(sub_graph, total_num_nodes),
-        structures.NearBipartiteCore(sub_graph, total_num_nodes),
+        # structures.NearBipartiteCore(sub_graph, total_num_nodes),
         structures.Chain(sub_graph, total_num_nodes),
     ]
     print sub_graph.nodes(), sub_graph.edges()
@@ -234,5 +278,5 @@ def debug_print(debug):
 
 
 if __name__ == '__main__':
-    vog = VoG('./test_cliqueStarBCChain.txt', hubset_k=1, gcc_num_nodes_criterion=5, top_k=10, time_limit=15)
+    vog = VoG('../DATA/soc-Epinions1.txt', hubset_k=1, gcc_num_nodes_criterion=5, top_k=10, time_limit=20)
 
