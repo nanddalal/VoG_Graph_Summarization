@@ -213,7 +213,7 @@ def mdl_encoding(sub_graph, total_num_nodes):
         structures.Star(sub_graph, total_num_nodes),
         structures.BipartiteCore(sub_graph, total_num_nodes),
         structures.NearBipartiteCore(sub_graph, total_num_nodes),
-        structures.Chain(sub_graph, total_num_nodes),
+        # structures.Chain(sub_graph, total_num_nodes),
     ]
     print sub_graph.nodes(), sub_graph.edges()
     for st in structure_types:
@@ -231,7 +231,6 @@ def mdl_encoding(sub_graph, total_num_nodes):
 def debug_print(debug):
     print debug
     sys.stdout.flush()
-
 
 if __name__ == '__main__':
     vog = VoG('./test_cliqueStarBCChain.txt', hubset_k=1, gcc_num_nodes_criterion=5, top_k=10, time_limit=15)
