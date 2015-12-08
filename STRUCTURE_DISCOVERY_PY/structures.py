@@ -38,66 +38,23 @@ def l2cnk(n, k):
     return nbits
 
 
-class Chain:
-    def __init__(self, graph, total_num_nodes):
-        self.graph = graph
-        self.total_num_nodes = total_num_nodes
-
-    def compute_mdl_cost(self):
-        if nx.number_of_nodes(self.graph) < 3:
-            self.mdl_cost = np.inf  # set the mdl_cost as Chain to be maximum so it won't be chosen
-            return
-        Asmall = nx.to_numpy_matrix(self.graph)
-        deg = np.sum(Asmall, axis=0)
-        min_deg_ind = np.argmin(deg)
-        p_init, empty_chain = self.bfs(Asmall, min_deg_ind, path=False)
-        p_fin, chain = self.bfs(Asmall, p_init, path=True)
-        missing = 0
-        existing = 0
-        for i in range(0, len(chain) - 1):
-            if Asmall[chain[i], chain[i+1]] == 0:
-                missing += 1
-            else:
-                existing += 1
-        E_0 = 2 * missing + (np.count_nonzero(Asmall) - 2 * existing)
-        E = (E_0, nx.number_of_nodes(self.graph) ** 2 - E_0)
-        x = list(xrange(nx.number_of_nodes(self.graph)))
-        n_tot_vec = self.total_num_nodes * np.ones((nx.number_of_nodes(self.graph),), dtype=np.int)
-        if E[0] == 0 or E[1] == 0:
-            mdl_cost = ln(nx.number_of_nodes(self.graph) - 1) + sum(np.log2(n_tot_vec - x))
-        else:
-            mdl_cost = ln(nx.number_of_nodes(self.graph) - 1) + sum(np.log2(n_tot_vec - x) ) + lnu_opt(E[0], E[1])
-
-        self.mdl_cost = mdl_cost
-
-    def bfs(self, Asmall, start, path=True):
-        queue = [start]
-        chain = []
-        extra_nodes_search = np.ones((nx.number_of_nodes(self.graph),), dtype=np.int)
-        node_list = -1 * np.ones((nx.number_of_nodes(self.graph),), dtype=np.int)
-        node_list[start] = start
-
-        while queue:
-            neighbors = np.array(np.nonzero(Asmall[queue[0], :])[1])  # get neighbors as numpy array
-            for i in range(0, np.size(neighbors)):
-                if node_list[neighbors[i]] == -1: # TODO: Die here
-                    node_list[neighbors[i]] = queue[0]
-                    queue.append(neighbors[i])
-            qsize = len(queue)
-            furthest_node = queue[qsize - 1]
-            queue = queue[1:]
-        if path:
-            curr = furthest_node
-            while curr != start:
-                chain.append(curr)
-                extra_nodes_search[curr] = 0
-                curr = node_list[curr]
-            chain.append(start)
-            chain = list(reversed(chain))
-            # print "chain:", chain
-            extra_nodes_search[start] = 0
-
-        return furthest_node, chain
+def mdl_encoding(subgraph, total_num_nodes):
+    err = Error(subgraph)
+    err.compute_mdl_cost()
+    structure_types = [
+        Clique(subgraph, total_num_nodes),
+        Star(subgraph, total_num_nodes),
+        BipartiteCore(subgraph, total_num_nodes),
+        NearBipartiteCore(subgraph, total_num_nodes),
+        Chain(subgraph, total_num_nodes),
+    ]
+    for st in structure_types:
+        st.compute_mdl_cost()
+        st.benefit = err.mdl_cost - st.mdl_cost
+    err.benefit = 0
+    structure_types.append(err)
+    optimal_structure = min(structure_types, key=lambda k: k.mdl_cost)
+    return optimal_structure
 
 
 class Clique:
@@ -261,7 +218,6 @@ class NearBipartiteCore:
 
         edges_inc = np.count_nonzero(Asmall[set1][:, set2])
         edges_exc = set1.sum()*set2.sum()-np.count_nonzero(Asmall[set1][:, set2])
-        print edges_inc, edges_exc
         if E[0] == 0 or E[1] == 0:
             mdl_cost = ln(k) \
                        + ln(l) \
@@ -285,6 +241,67 @@ class NearBipartiteCore:
                            + lnu_opt(E[0], E[1])
 
         self.mdl_cost = mdl_cost
+
+
+class Chain:
+    def __init__(self, graph, total_num_nodes):
+        self.graph = graph
+        self.total_num_nodes = total_num_nodes
+
+    def compute_mdl_cost(self):
+        if nx.number_of_nodes(self.graph) < 3:
+            self.mdl_cost = np.inf  # set the mdl_cost as Chain to be maximum so it won't be chosen
+            return
+        Asmall = nx.to_numpy_matrix(self.graph)
+        deg = np.sum(Asmall, axis=0)
+        min_deg_ind = np.argmin(deg)
+        p_init, empty_chain = self.bfs(Asmall, min_deg_ind, path=False)
+        p_fin, chain = self.bfs(Asmall, p_init, path=True)
+        missing = 0
+        existing = 0
+        for i in range(0, len(chain) - 1):
+            if Asmall[chain[i], chain[i+1]] == 0:
+                missing += 1
+            else:
+                existing += 1
+        E_0 = 2 * missing + (np.count_nonzero(Asmall) - 2 * existing)
+        E = (E_0, nx.number_of_nodes(self.graph) ** 2 - E_0)
+        x = list(xrange(nx.number_of_nodes(self.graph)))
+        n_tot_vec = self.total_num_nodes * np.ones((nx.number_of_nodes(self.graph),), dtype=np.int)
+        if E[0] == 0 or E[1] == 0:
+            mdl_cost = ln(nx.number_of_nodes(self.graph) - 1) + sum(np.log2(n_tot_vec - x))
+        else:
+            mdl_cost = ln(nx.number_of_nodes(self.graph) - 1) + sum(np.log2(n_tot_vec - x) ) + lnu_opt(E[0], E[1])
+
+        self.mdl_cost = mdl_cost
+
+    def bfs(self, Asmall, start, path=True):
+        queue = [start]
+        chain = []
+        extra_nodes_search = np.ones((nx.number_of_nodes(self.graph),), dtype=np.int)
+        node_list = -1 * np.ones((nx.number_of_nodes(self.graph),), dtype=np.int)
+        node_list[start] = start
+
+        while queue:
+            neighbors = np.array(np.nonzero(Asmall[queue[0], :])[1])  # get neighbors as numpy array
+            for i in range(0, np.size(neighbors)):
+                if node_list[neighbors[i]] == -1: # TODO: Die here
+                    node_list[neighbors[i]] = queue[0]
+                    queue.append(neighbors[i])
+            qsize = len(queue)
+            furthest_node = queue[qsize - 1]
+            queue = queue[1:]
+        if path:
+            curr = furthest_node
+            while curr != start:
+                chain.append(curr)
+                extra_nodes_search[curr] = 0
+                curr = node_list[curr]
+            chain.append(start)
+            chain = list(reversed(chain))
+            extra_nodes_search[start] = 0
+
+        return furthest_node, chain
 
 
 class Error:
