@@ -47,10 +47,8 @@ class Chain:
         if nx.number_of_nodes(self.graph) < 3:
             self.mdl_cost = np.inf  # set the mdl_cost as Chain to be maximum so it won't be chosen
             return
-        # Asmall = nx.to_scipy_sparse_matrix(self.graph)
         Asmall = nx.to_numpy_matrix(self.graph)
         deg = np.sum(Asmall, axis=0)
-        # deg = Asmall.sum(axis=0)
         min_deg_ind = np.argmin(deg)
         p_init, empty_chain = self.bfs(Asmall, min_deg_ind, path=False)
         p_fin, chain = self.bfs(Asmall, p_init, path=True)
@@ -63,13 +61,12 @@ class Chain:
                 existing += 1
         E_0 = 2 * missing + (np.count_nonzero(Asmall) - 2 * existing)
         E = (E_0, nx.number_of_nodes(self.graph) ** 2 - E_0)
-
         x = list(xrange(nx.number_of_nodes(self.graph)))
         n_tot_vec = self.total_num_nodes * np.ones((nx.number_of_nodes(self.graph),), dtype=np.int)
         if E[0] == 0 or E[1] == 0:
-            mdl_cost = ln(nx.number_of_nodes(self.graph) - 1) + sum(np.log2(n_tot_vec - x));
+            mdl_cost = ln(nx.number_of_nodes(self.graph) - 1) + sum(np.log2(n_tot_vec - x))
         else:
-            mdl_cost = ln(nx.number_of_nodes(self.graph) - 1) + sum(np.log2(n_tot_vec - x) ) + lnu_opt(E[0], E[1]);
+            mdl_cost = ln(nx.number_of_nodes(self.graph) - 1) + sum(np.log2(n_tot_vec - x) ) + lnu_opt(E[0], E[1])
 
         self.mdl_cost = mdl_cost
 
@@ -79,20 +76,16 @@ class Chain:
         extra_nodes_search = np.ones((nx.number_of_nodes(self.graph),), dtype=np.int)
         node_list = -1 * np.ones((nx.number_of_nodes(self.graph),), dtype=np.int)
         node_list[start] = start
-        # print node_list
 
         while queue:
-            # print "Current queue[0]:", queue[0]
             neighbors = np.array(np.nonzero(Asmall[queue[0], :])[1])  # get neighbors as numpy array
-            # print "neighbors size:", np.size(neighbors)
             for i in range(0, np.size(neighbors)):
-                if node_list[neighbors[i]] == -1:
+                if node_list[neighbors[i]] == -1: # TODO: Die here
                     node_list[neighbors[i]] = queue[0]
                     queue.append(neighbors[i])
             qsize = len(queue)
             furthest_node = queue[qsize - 1]
             queue = queue[1:]
-
         if path:
             curr = furthest_node
             while curr != start:
@@ -249,7 +242,6 @@ class NearBipartiteCore:
         phi[neighbors] = negative
         b = np.dot(np.linalg.inv(matI + a * D - c * Asmall), phi)
         b = np.array(b).flatten()
-
         set1 = np.array(b > 0)
         set2 = np.array(b < 0)
         Einc = np.count_nonzero(Asmall[set1][:, set1]) + np.count_nonzero(Asmall[set2][:, set2])
@@ -269,22 +261,28 @@ class NearBipartiteCore:
 
         edges_inc = np.count_nonzero(Asmall[set1][:, set2])
         edges_exc = set1.sum()*set2.sum()-np.count_nonzero(Asmall[set1][:, set2])
-
-        if edges_inc == 0 or edges_exc == 0:
+        print edges_inc, edges_exc
+        if E[0] == 0 or E[1] == 0:
             mdl_cost = ln(k) \
                        + ln(l) \
                        + l2cnk(N_tot, k) \
-                       + l2cnk(N_tot - k, l) \
-                       + lnu_opt(E[0], E[1])
+                       + l2cnk(N_tot - k, l)
         else:
-            mdl_cost = ln(k) \
-                       + ln(l) \
-                       + l2cnk(N_tot, k) \
-                       + l2cnk(N_tot - k, l) \
-                       + np.log2((n_sub+n_sub2)**2) \
-                       + edges_inc * nll(edges_inc, edges_exc, 1) \
-                       + edges_exc * nll(edges_inc, edges_exc, 0) \
-                       + lnu_opt(E[0], E[1])
+            if edges_inc == 0 or edges_exc == 0:
+                mdl_cost = ln(k) \
+                           + ln(l) \
+                           + l2cnk(N_tot, k) \
+                           + l2cnk(N_tot - k, l) \
+                           + lnu_opt(E[0], E[1])
+            else:
+                mdl_cost = ln(k) \
+                           + ln(l) \
+                           + l2cnk(N_tot, k) \
+                           + l2cnk(N_tot - k, l) \
+                           + np.log2((n_sub+n_sub2)**2) \
+                           + edges_inc * nll(edges_inc, edges_exc, 1) \
+                           + edges_exc * nll(edges_inc, edges_exc, 0) \
+                           + lnu_opt(E[0], E[1])
 
         self.mdl_cost = mdl_cost
 
