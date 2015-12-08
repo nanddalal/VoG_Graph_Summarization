@@ -20,7 +20,7 @@ class VoGTimeout(Exception):
 
 
 class VoG:
-    def __init__(self, input_file, hubset_k=1, gcc_num_nodes_criterion=7, top_k=10, time_limit=None):
+    def __init__(self, input_file, delimiter="\t", zero_indexed=True,  hubset_k=1, gcc_num_nodes_criterion=7, top_k=10, time_limit=None):
         self.top_k = top_k
         self.top_k_structures = []
 
@@ -28,7 +28,7 @@ class VoG:
         self.gcc_queue_cv = mp.Condition(self.gcc_queue_lock)
 
         print "Parsing adjacency list"
-        self.parse_adj_list_file(input_file)
+        self.parse_adj_list_file(input_file, delimiter=delimiter)
         # self.visualize_graph()
 
         if time_limit is not None:
@@ -78,12 +78,13 @@ class VoG:
 
     # TODO: this assumes a 1 indexed adjacency list
     # should only have to change the delimiter and whether to minus-equal one
-    def parse_adj_list_file(self, input_file):
+    def parse_adj_list_file(self, input_file, zero_indexed=True, delimiter="\t"):
         with open(input_file) as gf:
-            r = csv.reader(gf, delimiter=',')
+            r = csv.reader(gf, delimiter=delimiter)
             adj_list = np.array(list(r), int)
 
-        adj_list -= 1
+        if not zero_indexed:
+            adj_list -= 1
         row, col, data = [], [], []
         for e in adj_list:
             row.append(e[0])
@@ -233,5 +234,6 @@ def debug_print(debug):
     sys.stdout.flush()
 
 if __name__ == '__main__':
-    vog = VoG('./test_cliqueStarBCChain.txt', hubset_k=1, gcc_num_nodes_criterion=5, top_k=10, time_limit=15)
-
+    # vog = VoG('./test_cliqueStarBCChain.txt', hubset_k=1, gcc_num_nodes_criterion=5, top_k=10, time_limit=15)
+    vog = VoG('../DATA/test_100000.txt', delimiter="\t", zero_indexed=True, hubset_k=1, gcc_num_nodes_criterion=5, top_k=10, time_limit=300)
+    # vog = VoG('./test_cliqueStarBCChain.txt', delimiter=",", zero_indexed=False, hubset_k=1, gcc_num_nodes_criterion=5, top_k=10, time_limit=15)
