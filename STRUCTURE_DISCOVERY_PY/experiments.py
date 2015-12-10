@@ -33,7 +33,7 @@ if __name__ == '__main__':
                 for egonet_num_nodes_criterion in egonet_num_nodes_criterions:
                     if egonet_num_nodes_criterion > min_egonet_size:
                         output_file_name = experimental_results_path + \
-                                           subgraph_generation_algo + '_' + \
+                                           subgraph_generation_algo + '2_' + \
                                            str(min_egonet_size) + '_' + \
                                            str(egonet_num_nodes_criterion) + \
                                            '.out'
