@@ -1,5 +1,4 @@
 import os
-from summarization import VoG
 
 
 if __name__ == '__main__':
@@ -23,13 +22,11 @@ if __name__ == '__main__':
                                        str(hubset_k) + '_' + \
                                        str(gcc_num_nodes_criterion) + \
                                        '.out'
-                    vog = VoG('../DATA/flickr/flickr.graph', delimiter=',', zero_indexed=False,
-                              output_file=output_file_name,
-                              subgraph_generation_algo=subgraph_generation_algo,
-                              hubset_k=hubset_k,
-                              gcc_num_nodes_criterion=gcc_num_nodes_criterion)
-                    os.system('python ../MDL/score.py ./modified_edge_file.txt ' + output_file_name +
-                              ' > ' + output_file_name+'.lgm')
+                    os.system('python run_vog.py ' +
+                              output_file_name + ' ' +
+                              subgraph_generation_algo + ' ' +
+                              str(hubset_k) + ' ' +
+                              str(gcc_num_nodes_criterion))
         elif subgraph_generation_algo == 'k_hop_egonets':
             for min_egonet_size in min_egonet_sizes:
                 for egonet_num_nodes_criterion in egonet_num_nodes_criterions:
@@ -39,11 +36,9 @@ if __name__ == '__main__':
                                            str(min_egonet_size) + '_' + \
                                            str(egonet_num_nodes_criterion) + \
                                            '.out'
-                        vog = VoG('../DATA/flickr/flickr.graph', delimiter=',', zero_indexed=False,
-                                  output_file=output_file_name,
-                                  subgraph_generation_algo=subgraph_generation_algo,
-                                  min_egonet_size=min_egonet_size,
-                                  egonet_num_nodes_criterion=egonet_num_nodes_criterion)
-                        os.system('python ../MDL/score.py ./modified_edge_file.txt ' + output_file_name +
-                                  ' > ' + output_file_name+'.lgm')
+                        os.system('python run_vog.py ' +
+                                  output_file_name + ' ' +
+                                  subgraph_generation_algo + ' ' +
+                                  str(min_egonet_size) + ' ' +
+                                  str(egonet_num_nodes_criterion))
 

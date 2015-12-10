@@ -45,11 +45,11 @@ class VoG:
         print "Shutting down manager and terminating/joining the workers"
         self.manager.shutdown()
         time.sleep(5)
-        # try:
-        #     self.workers.terminate()
-        #     self.workers.join()
-        # except Exception as e:
-        #     print "Got exception while terminating workers", e
+        try:
+            self.workers.terminate()
+            self.workers.join()
+        except Exception as e:
+            print "Got exception while terminating workers", e
 
         print "Printing top k structures"
         self.print_top_k_structures()
