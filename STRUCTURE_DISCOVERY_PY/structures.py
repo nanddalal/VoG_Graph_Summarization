@@ -89,8 +89,8 @@ class Star:
 
     def __str__(self):
         satellite_node_indexes = np.array(self.satellite_node_indexes)+1
-        print "st " + str(self.max_degree_node_idx+1) + ", " + \
-              ' '.join(map(str, sorted(map(int, satellite_node_indexes))))
+        return "st " + str(self.max_degree_node_idx+1) + ", " + \
+               ' '.join(map(str, sorted(map(int, satellite_node_indexes))))
 
     # TODO: make this efficient
     def compute_mdl_cost(self):
@@ -131,7 +131,7 @@ class BipartiteCore:
         self.total_num_nodes = total_num_nodes
 
     def __str__(self):
-        print "bc " + ' '.join(map(str, self.left_side)) + ', ' + ' '.join(map(str, self.right_side))
+        return "bc " + ' '.join(map(str, self.left_side)) + ', ' + ' '.join(map(str, self.right_side))
 
     def compute_mdl_cost(self):
         Asmall = nx.to_numpy_matrix(self.graph)
@@ -198,7 +198,7 @@ class NearBipartiteCore:
         self.total_num_nodes = total_num_nodes
 
     def __str__(self):
-        print "nb " + ' '.join(map(str, self.left_side)) + ', ' + ' '.join(map(str, self.right_side))
+        return "nb " + ' '.join(map(str, self.left_side)) + ', ' + ' '.join(map(str, self.right_side))
 
     def compute_mdl_cost(self):
         Asmall = nx.to_numpy_matrix(self.graph)
@@ -277,7 +277,7 @@ class Chain:
         self.total_num_nodes = total_num_nodes
 
     def __str__(self):
-        print "ch " + ' '.join(map(str, sorted(map(int, self.nodes+1))))
+        return "ch " + ' '.join(map(str, sorted(map(int, self.nodes+1))))
 
     def compute_mdl_cost(self):
         if nx.number_of_nodes(self.graph) < 3:
