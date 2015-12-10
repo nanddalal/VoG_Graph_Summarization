@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 import time
 import csv
 import heapq
@@ -12,18 +13,14 @@ import multiprocessing as mp
 from subgraph_generation_algos import modified_slash_burn, k_hop_egonets
 
 
-"""
-Parameters to tune / perform analysis on - how do these parameters influence the results?
-Compute L(G|M) = L(M) + L(E)
-"""
-
-
 class VoG:
-    def __init__(self, input_file, delimiter, zero_indexed,
+    def __init__(self, input_file, delimiter, zero_indexed, output_file,
                  subgraph_generation_algo,
                  hubset_k=1, gcc_num_nodes_criterion=7,
-                 min_egonet_size=20, egonet_num_nodes_criterion=100,
+                 min_egonet_size=40, egonet_num_nodes_criterion=200,
                  top_k=100, num_iterations=20):
+
+        self.output_file = output_file
 
         self.subgraph_generation_algo = subgraph_generation_algo
         self.num_iterations = num_iterations
@@ -82,10 +79,12 @@ class VoG:
             adj_list -= 1
 
         row, col, data = [], [], []
-        for e in adj_list:
-            row.append(e[0])
-            col.append(e[1])
-            data.append(1)
+        with open("./modified_edge_file.txt", 'w') as modified_edge_file:
+            for e in adj_list:
+                row.append(e[0])
+                col.append(e[1])
+                data.append(1)
+                modified_edge_file.write("%s,%s\n" % (e[0]+1, e[1]+1))
 
         print "Constructing adjacency matrix"
         adj_mat = csr_matrix((data, (row, col)), shape=(adj_list.max() + 1, adj_list.max() + 1), dtype=np.int8)
@@ -108,7 +107,7 @@ class VoG:
         """
 
         self.workers.apply_async(update_top_k,
-                                 args=(self.top_k_queue, self.top_k),
+                                 args=(self.top_k_queue, self.top_k, self.output_file),
                                  callback=self.collect_top_k_structures)
 
         self.subgraph_queue = [self.G]
@@ -174,7 +173,8 @@ class VoG:
         self.subgraph_queue_lock.release()
 
 
-def update_top_k(top_k_queue, top_k):
+def update_top_k(top_k_queue, top_k, output_file):
+    iteration = 0
     top_k_structs = []
     while True:
         try:
@@ -190,9 +190,20 @@ def update_top_k(top_k_queue, top_k):
                 print "Adding", structure.__class__.__name__, \
                     "and removing", top_k_structs[0][1].__class__.__name__
                 heapq.heappushpop(top_k_structs, (structure.benefit, structure))
+        if iteration % 10 == 0:
+            with open(output_file, 'w') as out:
+                for s in top_k_structs:
+                    try:
+                        out.write(str(s[1]) + '\n')
+                    except NotImplementedError:
+                        pass
+        iteration += 1
+
     return top_k_structs
 
 
 if __name__ == '__main__':
-    vog = VoG('../DATA/flickr/flickr.graph', delimiter=',', zero_indexed=False, subgraph_generation_algo='k_hop_egonets')
+    vog = VoG('../DATA/flickr/flickr.graph', delimiter=',', zero_indexed=False, output_file='lol.txt',
+              subgraph_generation_algo='k_hop_egonets')
+    os.system('python ../MDL/score.py ./modified_edge_file.txt ' + 'lol.txt' + ' > ' + 'lol.txt'+'.lgm')
 

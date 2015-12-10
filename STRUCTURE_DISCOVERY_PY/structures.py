@@ -62,6 +62,9 @@ class Clique:
         self.graph = graph
         self.total_num_nodes = total_num_nodes
 
+    def __str__(self):
+        return "fc " + ' '.join(map(str, sorted(map(int, self.nodes+1))))
+
     def compute_mdl_cost(self):
         Asmall = nx.to_scipy_sparse_matrix(self.graph)
         # count_nonzero = len(Asmall.nonzero()[0])
@@ -76,11 +79,18 @@ class Clique:
 
         self.mdl_cost = mdl_cost
 
+        self.nodes = np.array(self.graph.nodes())
+
 
 class Star:
     def __init__(self, graph, total_num_nodes):
         self.graph = graph
         self.total_num_nodes = total_num_nodes
+
+    def __str__(self):
+        satellite_node_indexes = np.array(self.satellite_node_indexes)+1
+        print "st " + str(self.max_degree_node_idx+1) + ", " + \
+              ' '.join(map(str, sorted(map(int, satellite_node_indexes))))
 
     # TODO: make this efficient
     def compute_mdl_cost(self):
@@ -93,12 +103,12 @@ class Star:
             return
 
         # remove star hub from node, degree list
-        max_degree_node_idx = star_node_degrees[0][0]
+        self.max_degree_node_idx = star_node_degrees[0][0]
         del star_node_degrees[0]
 
-        num_missing_edges = (num_nodes - 1 - len(self.graph.neighbors(max_degree_node_idx)))
-        satellite_node_indexes = [d[0] for d in star_node_degrees]
-        num_extra_edges = self.graph.subgraph(satellite_node_indexes).number_of_edges()*2
+        num_missing_edges = (num_nodes - 1 - len(self.graph.neighbors(self.max_degree_node_idx)))
+        self.satellite_node_indexes = [d[0] for d in star_node_degrees]
+        num_extra_edges = self.graph.subgraph(self.satellite_node_indexes).number_of_edges()*2
         num_non_star_edges = 2*num_missing_edges + num_extra_edges
         E = (num_non_star_edges, (num_nodes**2 - num_non_star_edges))
 
@@ -119,6 +129,9 @@ class BipartiteCore:
     def __init__(self, graph, total_num_nodes):
         self.graph = graph
         self.total_num_nodes = total_num_nodes
+
+    def __str__(self):
+        print "bc " + ' '.join(map(str, self.left_side)) + ', ' + ' '.join(map(str, self.right_side))
 
     def compute_mdl_cost(self):
         Asmall = nx.to_numpy_matrix(self.graph)
@@ -172,11 +185,20 @@ class BipartiteCore:
 
         self.mdl_cost = mdl_cost
 
+        nodes = np.array(self.graph.nodes())
+        self.left_side = list(nodes[np.nonzero(set1)] + 1)
+        self.left_side.sort()
+        self.right_side = list(nodes[np.nonzero(set2)] + 1)
+        self.right_side.sort()
+
 
 class NearBipartiteCore:
     def __init__(self, graph, total_num_nodes):
         self.graph = graph
         self.total_num_nodes = total_num_nodes
+
+    def __str__(self):
+        print "nb " + ' '.join(map(str, self.left_side)) + ', ' + ' '.join(map(str, self.right_side))
 
     def compute_mdl_cost(self):
         Asmall = nx.to_numpy_matrix(self.graph)
@@ -242,11 +264,20 @@ class NearBipartiteCore:
 
         self.mdl_cost = mdl_cost
 
+        nodes = np.array(self.graph.nodes())
+        self.left_side = list(nodes[np.nonzero(set1)]+1)
+        self.left_side.sort()
+        self.right_side = list(nodes[np.nonzero(set2)]+1)
+        self.right_side.sort()
+
 
 class Chain:
     def __init__(self, graph, total_num_nodes):
         self.graph = graph
         self.total_num_nodes = total_num_nodes
+
+    def __str__(self):
+        print "ch " + ' '.join(map(str, sorted(map(int, self.nodes+1))))
 
     def compute_mdl_cost(self):
         if nx.number_of_nodes(self.graph) < 3:
@@ -274,6 +305,8 @@ class Chain:
             mdl_cost = ln(nx.number_of_nodes(self.graph) - 1) + sum(np.log2(n_tot_vec - x) ) + lnu_opt(E[0], E[1])
 
         self.mdl_cost = mdl_cost
+
+        self.nodes = np.array(self.graph.nodes())
 
     def bfs(self, Asmall, start, path=True):
         queue = [start]
@@ -307,6 +340,9 @@ class Chain:
 class Error:
     def __init__(self, graph):
         self.graph = graph
+
+    def __str__(self):
+        raise NotImplementedError
 
     def compute_mdl_cost(self):
         Asmall = nx.to_numpy_matrix(self.graph)
