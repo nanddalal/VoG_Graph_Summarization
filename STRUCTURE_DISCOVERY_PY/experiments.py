@@ -1,4 +1,5 @@
 import os
+import subprocess as sp
 
 
 if __name__ == '__main__':
@@ -22,11 +23,10 @@ if __name__ == '__main__':
                                        str(hubset_k) + '_' + \
                                        str(gcc_num_nodes_criterion) + \
                                        '.out'
-                    os.system('python run_vog.py ' +
-                              output_file_name + ' ' +
-                              subgraph_generation_algo + ' ' +
-                              str(hubset_k) + ' ' +
-                              str(gcc_num_nodes_criterion))
+                    print "LAUNCHING"
+                    sp.Popen(['python', 'run_vog.py',
+                              output_file_name, subgraph_generation_algo,
+                              str(hubset_k), str(gcc_num_nodes_criterion)])
         elif subgraph_generation_algo == 'k_hop_egonets':
             for min_egonet_size in min_egonet_sizes:
                 for egonet_num_nodes_criterion in egonet_num_nodes_criterions:
@@ -36,9 +36,8 @@ if __name__ == '__main__':
                                            str(min_egonet_size) + '_' + \
                                            str(egonet_num_nodes_criterion) + \
                                            '.out'
-                        os.system('python run_vog.py ' +
-                                  output_file_name + ' ' +
-                                  subgraph_generation_algo + ' ' +
-                                  str(min_egonet_size) + ' ' +
-                                  str(egonet_num_nodes_criterion))
+                        print "LAUNCHING"
+                        sp.Popen(['python', 'run_vog.py',
+                                  output_file_name, subgraph_generation_algo,
+                                  str(min_egonet_size), str(egonet_num_nodes_criterion)])
 
