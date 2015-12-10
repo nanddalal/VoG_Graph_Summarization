@@ -62,9 +62,13 @@ def k_hop_egonets(current_egonet, min_egonet_size, egonet_num_nodes_criterion, t
             continue
         elif degree > min_egonet_size:
             neighbors = current_egonet.neighbors(node)
-            neighbors.append(node)
-            subgraph = current_egonet.subgraph(neighbors)
-            current_egonet.remove_nodes_from(neighbors)
+            k_hop = []
+            for n in neighbors:
+                k_hop += current_egonet.neighbors(n)
+            k_hop += neighbors
+            k_hop.append(node)
+            subgraph = current_egonet.subgraph(k_hop)
+            current_egonet.remove_nodes_from(k_hop)
             if subgraph.number_of_nodes() <= egonet_num_nodes_criterion:
                 structure = mdl_encoding(subgraph, total_num_nodes)
                 try:

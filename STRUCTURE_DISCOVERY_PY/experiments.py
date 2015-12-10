@@ -8,7 +8,8 @@ if __name__ == '__main__':
     if not os.path.exists(experimental_results_path):
         os.makedirs(experimental_results_path)
 
-    subgraph_generation_algos = ['k_hop_egonets', 'modified_slash_burn']
+    # subgraph_generation_algos = ['k_hop_egonets', 'modified_slash_burn']
+    subgraph_generation_algos = ['k_hop_egonets']
     min_egonet_sizes = [10, 20, 50, 100]
     egonet_num_nodes_criterions = [50, 100, 200, 500, 1000]
     hubset_ks = [1, 4, 8]
@@ -24,7 +25,7 @@ if __name__ == '__main__':
                                        str(gcc_num_nodes_criterion) + \
                                        '.out'
                     print "LAUNCHING"
-                    sp.Popen(['python', 'run_vog.py',
+                    sp.Popen(['ipython', 'run_vog.py',
                               output_file_name, subgraph_generation_algo,
                               str(hubset_k), str(gcc_num_nodes_criterion)])
         elif subgraph_generation_algo == 'k_hop_egonets':
@@ -37,7 +38,7 @@ if __name__ == '__main__':
                                            str(egonet_num_nodes_criterion) + \
                                            '.out'
                         print "LAUNCHING"
-                        sp.Popen(['python', 'run_vog.py',
+                        sp.Popen(['ipython', 'run_vog.py',
                                   output_file_name, subgraph_generation_algo,
                                   str(min_egonet_size), str(egonet_num_nodes_criterion)])
 
