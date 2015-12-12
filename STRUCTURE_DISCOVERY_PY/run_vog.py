@@ -5,19 +5,27 @@ from summarization import VoG
 
 
 if __name__ == '__main__':
-    output_file_name = sys.argv[1]
+    normalized_fn = sys.argv[1]
     subgraph_generation_algo = sys.argv[2]
-    hyperparameter1 = int(sys.argv[3])
-    hyperparameter2 = int(sys.argv[4])
+    hyperparam1 = int(sys.argv[3])
+    hyperparam2 = int(sys.argv[4])
+    hyperparam3 = int(sys.argv[5])
 
-    vog = VoG('../DATA/flickr/flickr.graph', delimiter=',', zero_indexed=False,
-              output_file=output_file_name,
-              subgraph_generation_algo=subgraph_generation_algo,
-              hubset_k=hyperparameter1,
-              gcc_num_nodes_criterion=hyperparameter2,
-              min_egonet_size=hyperparameter1,
-              egonet_num_nodes_criterion=hyperparameter2)
+    kwargs = {
+        'dataset': 'flickr',
+        'input_dir': '../DATA/flickr/',
+        'input_fn': 'flickr.graph',
+        'delimiter': ',',
+        'zero_indexed': False
+    }
 
-    os.system('python ../MDL/score.py ./modified_edge_file.txt ' + output_file_name +
-              ' > ' + output_file_name+'.lgm')
+    vog = VoG(subgraph_generation_algo=subgraph_generation_algo,
+              hubset_k=hyperparam1,
+              gcc_num_nodes_criterion=hyperparam2,
+              min_egonet_size=hyperparam1,
+              egonet_num_nodes_criterion=hyperparam2,
+              hop_k=hyperparam3,
+              **kwargs)
+
+    os.system('python ../MDL/score.py ' + normalized_fn + ' ' + str(vog) + ' > ' + str(vog)+'.lgm')
 

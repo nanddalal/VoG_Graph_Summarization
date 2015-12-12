@@ -63,19 +63,15 @@ class Clique:
         self.total_num_nodes = total_num_nodes
 
     def __str__(self):
-        return "fc " + ' '.join(map(str, sorted(map(int, self.nodes+1))))
+        return 'fc ' + ' '.join(map(str, sorted(map(int, self.nodes+1))))
 
     def compute_mdl_cost(self):
-        Asmall = nx.to_scipy_sparse_matrix(self.graph)
-        # count_nonzero = len(Asmall.nonzero()[0])
-        count_nonzero = np.count_nonzero(Asmall)
-        # E = (len(Asmall)**2 - len(Asmall) - np.count_nonzero(Asmall), np.count_nonzero(Asmall))
-        len_Asmall = Asmall.shape[0]
-        E = (len_Asmall ** 2 - len_Asmall - count_nonzero, count_nonzero)
+        Asmall = nx.to_numpy_matrix(self.graph)
+        E = (len(Asmall)**2 - len(Asmall) - np.count_nonzero(Asmall), np.count_nonzero(Asmall))
         if E[0] == 0 or E[1] == 0:  # no excluded edges
-            mdl_cost = ln(len_Asmall) + l2cnk(self.total_num_nodes, len_Asmall)
+            mdl_cost = ln(len(Asmall)) + l2cnk(self.total_num_nodes, len(Asmall))
         else:
-            mdl_cost = ln(len_Asmall) + l2cnk(self.total_num_nodes, len_Asmall) + lnu_opt(E[0], E[1])
+            mdl_cost = ln(len(Asmall)) + l2cnk(self.total_num_nodes, len(Asmall)) + lnu_opt(E[0], E[1])
 
         self.mdl_cost = mdl_cost
 
@@ -89,10 +85,9 @@ class Star:
 
     def __str__(self):
         satellite_node_indexes = np.array(self.satellite_node_indexes)+1
-        return "st " + str(self.max_degree_node_idx+1) + ", " + \
+        return 'st ' + str(self.max_degree_node_idx+1) + ", " + \
                ' '.join(map(str, sorted(map(int, satellite_node_indexes))))
 
-    # TODO: make this efficient
     def compute_mdl_cost(self):
         # sorted list of node degree tuples in format (node, degree) in descending order
         star_node_degrees = sorted(self.graph.degree_iter(), key=itemgetter(1), reverse=True)
@@ -131,7 +126,7 @@ class BipartiteCore:
         self.total_num_nodes = total_num_nodes
 
     def __str__(self):
-        return "bc " + ' '.join(map(str, self.left_side)) + ', ' + ' '.join(map(str, self.right_side))
+        return 'bc ' + ' '.join(map(str, self.left_side)) + ', ' + ' '.join(map(str, self.right_side))
 
     def compute_mdl_cost(self):
         Asmall = nx.to_numpy_matrix(self.graph)
@@ -159,10 +154,6 @@ class BipartiteCore:
         set2 = np.array(b < 0)
         Einc = 2*(set1.sum()*set2.sum()-np.count_nonzero(Asmall[set1][:, set2])) + np.count_nonzero(Asmall[set1][:, set1]) + np.count_nonzero(Asmall[set2][:, set2])
         Eexc = len(Asmall)**2 - Einc
-        # M = np.zeros((n, n))
-        # M[set1][:, set2] = 1
-        # M[set2][:, set1] = 1
-        # E = np.logical_xor(M, Asmall)
 
         N_tot = self.total_num_nodes
         n_sub = set1.sum()
@@ -198,7 +189,7 @@ class NearBipartiteCore:
         self.total_num_nodes = total_num_nodes
 
     def __str__(self):
-        return "nb " + ' '.join(map(str, self.left_side)) + ', ' + ' '.join(map(str, self.right_side))
+        return 'nb ' + ' '.join(map(str, self.left_side)) + ', ' + ' '.join(map(str, self.right_side))
 
     def compute_mdl_cost(self):
         Asmall = nx.to_numpy_matrix(self.graph)
@@ -225,10 +216,6 @@ class NearBipartiteCore:
         set2 = np.array(b < 0)
         Einc = np.count_nonzero(Asmall[set1][:, set1]) + np.count_nonzero(Asmall[set2][:, set2])
         Eexc = len(Asmall)**2 - Einc
-        # M = np.zeros((n, n))
-        # M[set1][:, set2] = 1
-        # M[set2][:, set1] = 1
-        # E = np.logical_xor(M, Asmall)
 
         N_tot = self.total_num_nodes
         n_sub = set1.sum()
@@ -277,7 +264,7 @@ class Chain:
         self.total_num_nodes = total_num_nodes
 
     def __str__(self):
-        return "ch " + ' '.join(map(str, sorted(map(int, self.nodes+1))))
+        return 'ch ' + ' '.join(map(str, sorted(map(int, self.nodes+1))))
 
     def compute_mdl_cost(self):
         if nx.number_of_nodes(self.graph) < 3:
@@ -318,7 +305,7 @@ class Chain:
         while queue:
             neighbors = np.array(np.nonzero(Asmall[queue[0], :])[1])  # get neighbors as numpy array
             for i in range(0, np.size(neighbors)):
-                if node_list[neighbors[i]] == -1: # TODO: Die here
+                if node_list[neighbors[i]] == -1:  # Simon's computer dies here
                     node_list[neighbors[i]] = queue[0]
                     queue.append(neighbors[i])
             qsize = len(queue)
@@ -348,11 +335,9 @@ class Error:
         Asmall = nx.to_numpy_matrix(self.graph)
         E = (np.count_nonzero(Asmall), len(Asmall)**2 - np.count_nonzero(Asmall))
         if E[0] != 0 and E[1] != 0:
-            mdl_cost = lnu_opt(E[0], E[1])
+            self.mdl_cost = lnu_opt(E[0], E[1])
         elif E[0] != 0:
-            mdl_cost = ln(E[0])
+            self.mdl_cost = ln(E[0])
         elif E[1] != 0:
-            mdl_cost = ln(E[1])
-
-        self.mdl_cost = mdl_cost
+            self.mdl_cost = ln(E[1])
 

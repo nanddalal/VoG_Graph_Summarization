@@ -8,41 +8,60 @@ import numpy as np
 from scipy.sparse import csr_matrix
 import networkx as nx
 import multiprocessing as mp
-# import matplotlib.pyplot as plt
 
 from subgraph_generation_algos import modified_slash_burn, k_hop_egonets
 
 
 class VoG:
-    def __init__(self, input_file, delimiter, zero_indexed, output_file,
+    def __init__(self, dataset, input_dir, input_fn, delimiter, zero_indexed,
                  subgraph_generation_algo,
-                 hubset_k=1, gcc_num_nodes_criterion=7,
-                 min_egonet_size=40, egonet_num_nodes_criterion=200,
+                 hubset_k=1, gcc_num_nodes_criterion=100,
+                 min_egonet_size=10, egonet_num_nodes_criterion=100, hop_k=1,
                  top_k=100, num_iterations=20):
 
-        self.output_file = output_file
+        if subgraph_generation_algo == 'modified_slash_burn':
+            self.model_file = './' + dataset + \
+                              '_' + subgraph_generation_algo + \
+                              '_' + 'top' + str(top_k) + \
+                              '_' + 'iter' + str(num_iterations) + \
+                              '_' + 'hyperparams' + \
+                              '_' + str(hubset_k) + \
+                              '_' + str(gcc_num_nodes_criterion)
+        elif subgraph_generation_algo == 'k_hop_egonets':
+            self.model_file = './' + dataset + \
+                              '_' + subgraph_generation_algo + \
+                              '_' + 'top' + str(top_k) + \
+                              '_' + 'iter' + str(num_iterations) + \
+                              '_' + 'hyperparams' + \
+                              '_' + str(min_egonet_size) + \
+                              '_' + str(egonet_num_nodes_criterion) + \
+                              '_' + str(hop_k)
 
         self.subgraph_generation_algo = subgraph_generation_algo
-        self.num_iterations = num_iterations
-
         self.top_k = top_k
         self.top_k_structures = []
+        self.num_iterations = num_iterations
 
+        # Lock and CV for handling the subgraph queue and stopping criterion
         self.subgraph_queue_lock = mp.Lock()
         self.subgraph_queue_cv = mp.Condition(self.subgraph_queue_lock)
 
-        print "Parsing adjacency list"
-        self.parse_adj_list_file(input_file, delimiter, zero_indexed)
-        # self.visualize_graph()
+        print "Constructing graph"
+        adj_list = VoG.read_adj_list_file(input_dir, input_fn, delimiter, zero_indexed)
+        self.construct_graph_from_adj_list(adj_list)
 
+        # Initializing the shared top k queue
         self.manager = mp.Manager()
         self.top_k_queue = self.manager.JoinableQueue()
+
+        print "Initializing", mp.cpu_count(), "workers"
         self.workers = mp.Pool(processes=None)
 
-        print "Performing subgraph generation and labeling using top k heuristic"
-        self.perform_graph_summarization(hubset_k, gcc_num_nodes_criterion, min_egonet_size, egonet_num_nodes_criterion)
+        print "Performing graph summarization using top k heuristic"
+        self.perform_graph_summarization(hubset_k, gcc_num_nodes_criterion,
+                                         min_egonet_size, egonet_num_nodes_criterion, hop_k)
 
-        print "Shutting down manager and terminating/joining the workers"
+        print "Shutting down manager and attempting to terminate/join the workers"
         self.manager.shutdown()
         time.sleep(5)
         try:
@@ -54,74 +73,77 @@ class VoG:
         print "Printing top k structures"
         self.print_top_k_structures()
 
-        # self.visualize_graph()
-        # plt.show()
-        # plt.close()
-
-    def visualize_graph(self):
-        # fig = plt.figure()
-        pos = nx.spring_layout(self.G)
-        nx.draw_networkx_nodes(self.G, pos)
-        nx.draw_networkx_edges(self.G, pos)
-        nx.draw_networkx_labels(self.G, pos)
+    def __str__(self):
+        return self.model_file
 
     def print_top_k_structures(self):
+        # Sorting top k structures using heap sort
         self.top_k_structures.sort(reverse=True)
         for s in self.top_k_structures:
             print s[1].__class__.__name__, s[1].graph.nodes()
 
-    def parse_adj_list_file(self, input_file, delimiter, zero_indexed):
-        with open(input_file) as gf:
+    @staticmethod
+    def read_adj_list_file(input_dir, input_fn, delimiter, zero_indexed):
+        with open(input_dir+input_fn) as gf:
             r = csv.reader(gf, delimiter=delimiter)
             adj_list = np.array(list(r), int)
 
         if not zero_indexed:
             adj_list -= 1
 
-        row, col, data = [], [], []
-        with open("./modified_edge_file.txt", 'w') as modified_edge_file:
+        return adj_list
+
+    @staticmethod
+    def create_normalized_file(dataset, input_dir, input_fn, delimiter, zero_indexed):
+        adj_list = VoG.read_adj_list_file(input_dir, input_fn, delimiter, zero_indexed)
+
+        normalize_fn = input_dir+dataset+'.normalized'
+        with open(normalize_fn, 'w') as nf:
             for e in adj_list:
-                row.append(e[0])
-                col.append(e[1])
-                data.append(1)
-                modified_edge_file.write("%s,%s\n" % (e[0]+1, e[1]+1))
+                nf.write("%s,%s\n" % (e[0]+1, e[1]+1))
+
+        return normalize_fn
+
+    def construct_graph_from_adj_list(self, adj_list):
+        rows = [e[0] for e in adj_list]
+        cols = [e[1] for e in adj_list]
 
         print "Constructing adjacency matrix"
-        adj_mat = csr_matrix((data, (row, col)), shape=(adj_list.max() + 1, adj_list.max() + 1), dtype=np.int8)
+        adj_mat = csr_matrix((np.ones(len(adj_list)), (rows, cols)),
+                             shape=(adj_list.max() + 1, adj_list.max() + 1),
+                             dtype=np.int8)
 
-        print "Constructing networkx graph"
+        print "Constructing NetworkX graph"
         self.G = nx.from_scipy_sparse_matrix(adj_mat)
 
         self.total_num_nodes = self.G.number_of_nodes()
         self.total_num_edges = self.G.number_of_edges()
 
-    # @profiler
     def perform_graph_summarization(self,
                                     hubset_k, gcc_num_nodes_criterion,
-                                    min_egonet_size, egonet_num_nodes_criterion):
-        """ Peforms graph summarization
-        
-        Args:
-            k: number of hubsets to remove at each iteration
-            gcc_num_nodes_criterion: the inclusive upper-bound criterion for a subgraph to be a GCC which will be burned
-        """
+                                    min_egonet_size, egonet_num_nodes_criterion, hop_k):
 
+        print "Spinning off the update top k process to handle assembly of the top k structures"
         self.workers.apply_async(update_top_k,
-                                 args=(self.top_k_queue, self.top_k, self.output_file),
+                                 args=(self.top_k_queue, self.top_k, self.model_file),
                                  callback=self.collect_top_k_structures)
 
+        print "Initializing the subgraph queue to be the whole graph"
         self.subgraph_queue = [self.G]
 
         iteration = 0
         self.num_finished = 0
         self.num_to_finish = 1
 
+        print "Entering main subgraph generation loop along with MDL encodings"
         while True:
             self.subgraph_queue_lock.acquire()
 
+            # Wait until the subgraph queue becomes non empty
             while len(self.subgraph_queue) <= 0:
                 self.subgraph_queue_cv.wait()
 
+            # The processed subgraphs will be updating these values so that we stop when we are at the appropriate depth
             if self.num_finished >= self.num_to_finish:
                 break
 
@@ -141,6 +163,7 @@ class VoG:
                                              args=(subgraph,
                                                    min_egonet_size,
                                                    egonet_num_nodes_criterion,
+                                                   hop_k,
                                                    self.total_num_nodes,
                                                    self.top_k_queue,
                                                    iteration),
@@ -151,10 +174,9 @@ class VoG:
 
             self.subgraph_queue_lock.release()
 
-        print "We had to finish", self.num_to_finish, "and we finished", self.num_finished
+        print "We had to process", self.num_to_finish, "and we processed", self.num_finished, "subgraphs"
 
     def collect_top_k_structures(self, top_k_structs):
-        print "Called update top k's calback function"
         self.top_k_structures = top_k_structs
 
     def collect_resulting_subgraphs(self, iteration_subgraphs):
@@ -165,6 +187,8 @@ class VoG:
 
         self.subgraph_queue += subgraphs
         self.num_finished += 1
+        # Kind of like doing iterative deepening?
+        # We will keep increasing the number of subgraphs we have to process until we reach the specified num iterations
         if iteration < self.num_iterations:
             self.num_to_finish += len(subgraphs)
 
@@ -173,7 +197,7 @@ class VoG:
         self.subgraph_queue_lock.release()
 
 
-def update_top_k(top_k_queue, top_k, output_file):
+def update_top_k(top_k_queue, top_k, model_file):
     iteration = 0
     top_k_structs = []
     while True:
@@ -182,6 +206,7 @@ def update_top_k(top_k_queue, top_k, output_file):
         except Exception as e:
             print "Manager was shut down so should be calling callback", e
             break
+
         if len(top_k_structs) < top_k:
             print "Adding", structure.__class__.__name__
             heapq.heappush(top_k_structs, (structure.benefit, structure))
@@ -190,8 +215,10 @@ def update_top_k(top_k_queue, top_k, output_file):
                 print "Adding", structure.__class__.__name__, \
                     "and removing", top_k_structs[0][1].__class__.__name__
                 heapq.heappushpop(top_k_structs, (structure.benefit, structure))
+
+        # Every 10 iterations, save the top k structures to disk
         if iteration % 10 == 0:
-            with open(output_file, 'w') as out:
+            with open(model_file, 'w') as out:
                 for s in top_k_structs:
                     try:
                         out.write(str(s[1]) + '\n')
@@ -203,7 +230,14 @@ def update_top_k(top_k_queue, top_k, output_file):
 
 
 if __name__ == '__main__':
-    vog = VoG('../DATA/flickr/flickr.graph', delimiter=',', zero_indexed=False, output_file='lol.txt',
-              subgraph_generation_algo='k_hop_egonets')
-    os.system('python ../MDL/score.py ./modified_edge_file.txt ' + 'lol.txt' + ' > ' + 'lol.txt'+'.lgm')
+    kwargs = {
+        'dataset': 'flickr',
+        'input_dir': '../DATA/flickr/',
+        'input_fn': 'flickr.graph',
+        'delimiter': ',',
+        'zero_indexed': False
+    }
+    normalized_fn = VoG.create_normalized_file(**kwargs)
+    vog = VoG(subgraph_generation_algo='k_hop_egonets', **kwargs)
+    os.system('python ../MDL/score.py ' + normalized_fn + ' ' + str(vog) + ' > ' + str(vog)+'.lgm')
 

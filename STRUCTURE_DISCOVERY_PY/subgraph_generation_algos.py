@@ -4,7 +4,8 @@ from operator import itemgetter
 from structures import mdl_encoding
 
 
-def modified_slash_burn(current_gcc, hubset_k, gcc_num_nodes_criterion, total_num_nodes, top_k_queue, iteration):
+def modified_slash_burn(current_gcc, hubset_k, gcc_num_nodes_criterion,
+                        total_num_nodes, top_k_queue, iteration):
     gccs = []
 
     print "Finding k hubset", current_gcc.number_of_nodes(), current_gcc.number_of_edges()
@@ -50,7 +51,8 @@ def modified_slash_burn(current_gcc, hubset_k, gcc_num_nodes_criterion, total_nu
     return iteration, gccs
 
 
-def k_hop_egonets(current_egonet, min_egonet_size, egonet_num_nodes_criterion, total_num_nodes, top_k_queue, iteration):
+def k_hop_egonets(current_egonet, min_egonet_size, egonet_num_nodes_criterion, hop_k,
+                  total_num_nodes, top_k_queue, iteration):
     egonets = []
 
     # 1
@@ -58,17 +60,26 @@ def k_hop_egonets(current_egonet, min_egonet_size, egonet_num_nodes_criterion, t
     node_degrees = sorted(current_egonet.degree_iter(), key=itemgetter(1), reverse=True)
 
     for node, degree in node_degrees:
+        # if the node was removed as part of a previous egonet don't consider it any more
         if not nx.degree(current_egonet, [node]):
             continue
         elif degree > min_egonet_size:
-            neighbors = current_egonet.neighbors(node)
-            k_hop = []
-            for n in neighbors:
-                k_hop += current_egonet.neighbors(n)
-            k_hop += neighbors
-            k_hop.append(node)
-            subgraph = current_egonet.subgraph(k_hop)
-            current_egonet.remove_nodes_from(k_hop)
+            # iteratively build the k hop neighbors for the current node in consideration
+            k_hop_neighbors = []
+            neighbors = [node]
+            for hop in range(hop_k):
+                next_neighbors = []
+                for n in neighbors:
+                    next_neighbors += current_egonet.neighbors(n)
+                k_hop_neighbors += next_neighbors
+                neighbors = next_neighbors
+            k_hop_neighbors.append(node)
+
+            # construct a subgraph from the k hop neighbors and induced edges
+            subgraph = current_egonet.subgraph(k_hop_neighbors)
+            # and remove the k hop neigbors from the current egonet in consideration
+            current_egonet.remove_nodes_from(k_hop_neighbors)
+
             if subgraph.number_of_nodes() <= egonet_num_nodes_criterion:
                 structure = mdl_encoding(subgraph, total_num_nodes)
                 try:
