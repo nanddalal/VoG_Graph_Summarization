@@ -231,9 +231,9 @@ def update_top_k(top_k_queue, top_k, model_file):
 
 if __name__ == '__main__':
     kwargs = {
-        'dataset': 'flickr',
-        'input_dir': '../DATA/flickr/',
-        'input_fn': 'flickr.graph',
+        'dataset': 'oregon',
+        'input_dir': '../DATA/as-oregon/',
+        'input_fn': 'as-oregon.graph',
         'delimiter': ',',
         'zero_indexed': False
     }

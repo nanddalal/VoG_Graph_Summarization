@@ -24,7 +24,7 @@ if __name__ == '__main__':
     gcc_num_nodes_criterions = [50, 100, 200]
     min_egonet_sizes = [10, 20, 50, 100]
     egonet_num_nodes_criterions = [50, 100, 200, 500, 1000]
-    hop_ks = [1, 2, 3]
+    hop_ks = [1, 2]
 
     for subgraph_generation_algo in subgraph_generation_algos:
         if subgraph_generation_algo == 'modified_slash_burn':
