@@ -2,6 +2,7 @@
 
 import os
 import time
+import signal
 import csv
 import heapq
 import numpy as np
@@ -10,6 +11,13 @@ import networkx as nx
 import multiprocessing as mp
 
 from subgraph_generation_algos import modified_slash_burn, k_hop_egonets
+
+
+class VoGTimeout(Exception):
+    @staticmethod
+    def time_limit_handler(signum, frame):
+        print "Waited enough time for the workers to join"
+        raise VoGTimeout
 
 
 class VoG:
@@ -38,13 +46,13 @@ class VoG:
                               '_' + str(hop_k)
 
         self.subgraph_generation_algo = subgraph_generation_algo
+        self.hubset_k = hubset_k
+        self.gcc_num_nodes_criterion = gcc_num_nodes_criterion
+        self.min_egonet_size = min_egonet_size
+        self.egonet_num_nodes_criterion = egonet_num_nodes_criterion
+        self.hop_k = hop_k
         self.top_k = top_k
-        self.top_k_structures = []
         self.num_iterations = num_iterations
-
-        # Lock and CV for handling the subgraph queue and stopping criterion
-        self.subgraph_queue_lock = mp.Lock()
-        self.subgraph_queue_cv = mp.Condition(self.subgraph_queue_lock)
 
         print "Constructing graph"
         adj_list = VoG.read_adj_list_file(input_dir, input_fn, delimiter, zero_indexed)
@@ -54,24 +62,16 @@ class VoG:
         self.manager = mp.Manager()
         self.top_k_queue = self.manager.JoinableQueue()
 
+        # Lock and CV for handling the subgraph queue and stopping criterion
+        self.subgraph_queue_lock = mp.Lock()
+        self.subgraph_queue_cv = mp.Condition(self.subgraph_queue_lock)
+
         print "Initializing", mp.cpu_count()/2, "workers"
         self.workers = mp.Pool(processes=mp.cpu_count()/2)
 
-        print "Performing graph summarization using top k heuristic"
-        self.perform_graph_summarization(hubset_k, gcc_num_nodes_criterion,
-                                         min_egonet_size, egonet_num_nodes_criterion, hop_k)
-
-        print "Shutting down manager and attempting to terminate/join the workers"
-        self.manager.shutdown()
-        time.sleep(5)
-        try:
-            self.workers.terminate()
-            self.workers.join()
-        except Exception as e:
-            print "Got exception while terminating workers", e
-
-        print "Printing top k structures"
-        self.print_top_k_structures()
+        self.top_k_structures = []
+        # print "Printing top k structures"
+        # self.print_top_k_structures()
 
     def __str__(self):
         return self.model_file
@@ -118,6 +118,29 @@ class VoG:
 
         self.total_num_nodes = self.G.number_of_nodes()
         self.total_num_edges = self.G.number_of_edges()
+
+    def run(self):
+        start_time = time.time()
+        print "Performing graph summarization using top k heuristic"
+        self.perform_graph_summarization(self.hubset_k, self.gcc_num_nodes_criterion,
+                                         self.min_egonet_size, self.egonet_num_nodes_criterion, self.hop_k)
+        end_time = time.time()
+
+        print "Shutting down manager and attempting to terminate/join the workers"
+        signal.signal(signal.SIGALRM, VoGTimeout.time_limit_handler)
+        signal.alarm(10)
+        try:
+            self.manager.shutdown()
+            self.workers.terminate()
+            self.workers.join()
+        except Exception as e:
+            print "Got exception while terminating workers", e
+            signal.alarm(0)
+        else:
+            print "Workers joined - resetting the SIGALRM"
+            signal.alarm(0)
+
+        return end_time - start_time
 
     def perform_graph_summarization(self,
                                     hubset_k, gcc_num_nodes_criterion,
@@ -200,6 +223,7 @@ class VoG:
 def update_top_k(top_k_queue, top_k, model_file):
     iteration = 0
     top_k_structs = []
+
     while True:
         try:
             structure = top_k_queue.get()
@@ -239,5 +263,10 @@ if __name__ == '__main__':
     }
     normalized_fn = VoG.create_normalized_file(**kwargs)
     vog = VoG(subgraph_generation_algo='k_hop_egonets', **kwargs)
-    os.system('python ../MDL/score.py ' + normalized_fn + ' ' + str(vog) + ' > ' + str(vog)+'.lgm')
+    print "LAUNCHING", str(vog)
+    runtime = vog.run()
+    print "RUNTIME:", runtime
+    os.system('python ../MDL/score.py ' + normalized_fn + ' ' + str(vog) +
+              ' > ' + str(vog)+'.lgm')
+    os.system('echo ' + str(runtime) + ' >> ' + str(vog)+'.lgm')
 
