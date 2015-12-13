@@ -15,10 +15,6 @@ if __name__ == '__main__':
     }
     normalized_fn = VoG.create_normalized_file(**kwargs)
 
-    experimental_results_path = './experimental_results/'
-    if not os.path.exists(experimental_results_path):
-        os.makedirs(experimental_results_path)
-
     subgraph_generation_algos = ['k_hop_egonets', 'modified_slash_burn']
     hubset_ks = [8, 4, 1]
     gcc_num_nodes_criterions = [50, 100, 200]

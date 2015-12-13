@@ -54,8 +54,8 @@ class VoG:
         self.manager = mp.Manager()
         self.top_k_queue = self.manager.JoinableQueue()
 
-        print "Initializing", mp.cpu_count(), "workers"
-        self.workers = mp.Pool(processes=None)
+        print "Initializing", mp.cpu_count()/2, "workers"
+        self.workers = mp.Pool(processes=mp.cpu_count()/2)
 
         print "Performing graph summarization using top k heuristic"
         self.perform_graph_summarization(hubset_k, gcc_num_nodes_criterion,
