@@ -272,7 +272,7 @@ if __name__ == '__main__':
         'zero_indexed': False
     }
     normalized_fn = VoG.create_normalized_file(**kwargs)
-    vog = VoG(subgraph_generation_algo='modified_slash_burn', **kwargs)
+    vog = VoG(subgraph_generation_algo='k_hop_egonets', **kwargs)
     print "LAUNCHING", str(vog)
     runtime = vog.summarize()
     print "RUNTIME:", runtime
