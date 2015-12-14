@@ -16,8 +16,8 @@ if __name__ == '__main__':
     subgraph_generation_algos = ['k_hop_egonets', 'modified_slash_burn']
     hubset_ks = [8, 4, 1]
     gcc_num_nodes_criterions = [50, 100, 200]
-    min_egonet_sizes = [10, 20, 50, 100]
-    egonet_num_nodes_criterions = [50, 100, 200, 500, 1000]
+    min_egonet_sizes = [10, 50, 100]
+    egonet_num_nodes_criterions = [100, 200, 500]
     hop_ks = [1, 2]
 
     for subgraph_generation_algo in subgraph_generation_algos:
