@@ -1,5 +1,4 @@
 import os
-import subprocess as sp
 
 from summarization import VoG
 
@@ -30,7 +29,7 @@ if __name__ == '__main__':
                               gcc_num_nodes_criterion=gcc_num_nodes_criterion,
                               **kwargs)
                     print "LAUNCHING", str(vog)
-                    runtime = vog.run()
+                    runtime = vog.summarize()
                     print "RUNTIME:", runtime
                     os.system('python ../MDL/score.py ' + normalized_fn + ' ' + str(vog) +
                               ' > ' + str(vog)+'.lgm')
@@ -46,7 +45,7 @@ if __name__ == '__main__':
                                       hop_k=hop_k,
                                       **kwargs)
                             print "LAUNCHING", str(vog)
-                            runtime = vog.run()
+                            runtime = vog.summarize()
                             print "RUNTIME:", runtime
                             os.system('python ../MDL/score.py ' + normalized_fn + ' ' + str(vog) +
                                       ' > ' + str(vog)+'.lgm')

@@ -45,29 +45,23 @@ class VoG:
                               '_' + str(egonet_num_nodes_criterion) + \
                               '_' + str(hop_k)
 
+        self.dataset = dataset
+        self.input_dir = input_dir
+        self.input_fn = input_fn
+        self.delimiter = delimiter
+        self.zero_indexed = zero_indexed
+
         self.subgraph_generation_algo = subgraph_generation_algo
+
         self.hubset_k = hubset_k
         self.gcc_num_nodes_criterion = gcc_num_nodes_criterion
+
         self.min_egonet_size = min_egonet_size
         self.egonet_num_nodes_criterion = egonet_num_nodes_criterion
         self.hop_k = hop_k
+
         self.top_k = top_k
         self.num_iterations = num_iterations
-
-        print "Constructing graph"
-        adj_list = VoG.read_adj_list_file(input_dir, input_fn, delimiter, zero_indexed)
-        self.construct_graph_from_adj_list(adj_list)
-
-        # Initializing the shared top k queue
-        self.manager = mp.Manager()
-        self.top_k_queue = self.manager.JoinableQueue()
-
-        # Lock and CV for handling the subgraph queue and stopping criterion
-        self.subgraph_queue_lock = mp.Lock()
-        self.subgraph_queue_cv = mp.Condition(self.subgraph_queue_lock)
-
-        print "Initializing", mp.cpu_count()/2, "workers"
-        self.workers = mp.Pool(processes=mp.cpu_count()/2)
 
         self.top_k_structures = []
         # print "Printing top k structures"
@@ -119,7 +113,23 @@ class VoG:
         self.total_num_nodes = self.G.number_of_nodes()
         self.total_num_edges = self.G.number_of_edges()
 
-    def run(self):
+    def summarize(self):
+
+        print "Constructing graph"
+        adj_list = VoG.read_adj_list_file(self.input_dir, self.input_fn, self.delimiter, self.zero_indexed)
+        self.construct_graph_from_adj_list(adj_list)
+
+        # Initializing the shared top k queue
+        self.manager = mp.Manager()
+        self.top_k_queue = self.manager.JoinableQueue()
+
+        # Lock and CV for handling the subgraph queue and stopping criterion
+        self.subgraph_queue_lock = mp.Lock()
+        self.subgraph_queue_cv = mp.Condition(self.subgraph_queue_lock)
+
+        print "Initializing", mp.cpu_count()/2, "workers"
+        self.workers = mp.Pool(processes=mp.cpu_count()/2)
+
         start_time = time.time()
         print "Performing graph summarization using top k heuristic"
         self.perform_graph_summarization(self.hubset_k, self.gcc_num_nodes_criterion,
@@ -255,16 +265,16 @@ def update_top_k(top_k_queue, top_k, model_file):
 
 if __name__ == '__main__':
     kwargs = {
-        'dataset': 'oregon',
-        'input_dir': '../DATA/as-oregon/',
-        'input_fn': 'as-oregon.graph',
+        'dataset': 'flickr',
+        'input_dir': '../DATA/flickr/',
+        'input_fn': 'flickr.graph',
         'delimiter': ',',
         'zero_indexed': False
     }
     normalized_fn = VoG.create_normalized_file(**kwargs)
-    vog = VoG(subgraph_generation_algo='k_hop_egonets', **kwargs)
+    vog = VoG(subgraph_generation_algo='modified_slash_burn', **kwargs)
     print "LAUNCHING", str(vog)
-    runtime = vog.run()
+    runtime = vog.summarize()
     print "RUNTIME:", runtime
     os.system('python ../MDL/score.py ' + normalized_fn + ' ' + str(vog) +
               ' > ' + str(vog)+'.lgm')
