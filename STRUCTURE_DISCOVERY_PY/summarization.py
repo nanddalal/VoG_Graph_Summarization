@@ -127,8 +127,8 @@ class VoG:
         self.subgraph_queue_lock = mp.Lock()
         self.subgraph_queue_cv = mp.Condition(self.subgraph_queue_lock)
 
-        print "Initializing", mp.cpu_count()/2, "workers"
-        self.workers = mp.Pool(processes=mp.cpu_count()/2)
+        print "Initializing", mp.cpu_count(), "workers"
+        self.workers = mp.Pool(processes=None)
 
         start_time = time.time()
         print "Performing graph summarization using top k heuristic"
