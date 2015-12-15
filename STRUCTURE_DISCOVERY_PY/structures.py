@@ -51,8 +51,6 @@ def mdl_encoding(subgraph, total_num_nodes):
     for st in structure_types:
         st.compute_mdl_cost()
         st.benefit = err.mdl_cost - st.mdl_cost
-    err.benefit = 0
-    structure_types.append(err)
     optimal_structure = min(structure_types, key=lambda k: k.mdl_cost)
     return optimal_structure
 

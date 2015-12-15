@@ -14,8 +14,8 @@ if __name__ == '__main__':
     normalized_fn = VoG.create_normalized_file(**kwargs)
 
     subgraph_generation_algos = ['k_hop_egonets', 'modified_slash_burn']
-    hubset_ks = [8, 4, 1]
-    gcc_num_nodes_criterions = [50, 100, 200]
+    hubset_ks = [8, 4]
+    gcc_num_nodes_criterions = [100, 500]
     min_egonet_sizes = [10, 50, 100]
     egonet_num_nodes_criterions = [100, 200, 500]
     hop_ks = [2, 1]

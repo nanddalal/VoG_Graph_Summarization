@@ -104,8 +104,8 @@ class VoG:
 
         print "Constructing adjacency matrix"
         adj_mat = csr_matrix((np.ones(len(adj_list)), (rows, cols)),
-                             shape=(adj_list.max() + 1, adj_list.max() + 1),
-                             dtype=np.int8)
+                             shape=(adj_list.max() + 1, adj_list.max() + 1))
+        adj_mat = adj_mat + adj_mat.T
 
         print "Constructing NetworkX graph"
         self.G = nx.from_scipy_sparse_matrix(adj_mat)

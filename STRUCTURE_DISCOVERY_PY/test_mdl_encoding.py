@@ -5,21 +5,26 @@ from structures import *
 
 
 a = [[ 0.,  1.,  1.,  1.,  1.,  1.,  1.,  1.],
-     [ 1.,  0.,  0.,  0.,  0.,  0.,  0.,  0.],
-     [ 1.,  0.,  0.,  0.,  0.,  0.,  0.,  0.],
-     [ 1.,  0.,  0.,  0.,  0.,  0.,  0.,  0.],
-     [ 1.,  0.,  0.,  0.,  0.,  0.,  0.,  0.],
-     [ 1.,  0.,  0.,  0.,  0.,  0.,  0.,  0.],
-     [ 1.,  0.,  0.,  0.,  0.,  0.,  0.,  0.],
-     [ 1.,  0.,  0.,  0.,  0.,  0.,  0.,  0.]];
+     [ 1.,  0.,  1.,  1.,  1.,  1.,  1.,  1.],
+     [ 1.,  1.,  0.,  1.,  1.,  1.,  1.,  1.],
+     [ 1.,  1.,  1.,  0.,  1.,  1.,  1.,  1.],
+     [ 1.,  1.,  1.,  1.,  0.,  1.,  1.,  1.],
+     [ 1.,  1.,  1.,  1.,  1.,  0.,  1.,  1.],
+     [ 1.,  1.,  1.,  1.,  1.,  1.,  0.,  1.],
+     [ 1.,  1.,  1.,  1.,  1.,  1.,  1.,  0.]];
+cs = 50
+a = np.ones((cs,cs)) - np.eye(cs)
 a = np.array(a)
 a = nx.from_numpy_matrix(a)
 
+tnn = 12000
+
 s=[]
-s.append(Clique(a,12))
-s.append(Star(a,12))
-s.append(BipartiteCore(a,12))
-s.append(NearBipartiteCore(a,12))
+s.append(Clique(a,tnn))
+s.append(Star(a,tnn))
+s.append(BipartiteCore(a,tnn))
+s.append(NearBipartiteCore(a,tnn))
+s.append(Error(a))
 
 for ss in s:
     ss.compute_mdl_cost()
